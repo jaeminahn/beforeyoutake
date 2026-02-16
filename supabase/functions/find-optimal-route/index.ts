@@ -3,7 +3,8 @@ import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
-  "Access-Control-Allow-Headers": "Content-Type, Authorization, X-Client-Info, Apikey",
+  "Access-Control-Allow-Headers":
+    "Content-Type, Authorization, X-Client-Info, Apikey",
 };
 
 const TMAP_API_KEY = Deno.env.get("TMAP_API_KEY") || "";
@@ -32,7 +33,12 @@ interface RouteRequest {
 
 interface RouteCandidate {
   id: string;
-  type: 'transit-only' | 'taxi-only' | 'taxi-transit' | 'transit-taxi' | 'walk-only';
+  type:
+    | "transit-only"
+    | "taxi-only"
+    | "taxi-transit"
+    | "transit-taxi"
+    | "walk-only";
   totalTimeMin: number;
   totalCostKrw: number;
   walkTimeMin: number;
@@ -45,7 +51,7 @@ interface RouteCandidate {
 }
 
 interface TransitStep {
-  mode: 'WALK' | 'BUS' | 'SUBWAY';
+  mode: "WALK" | "BUS" | "SUBWAY";
   from: string;
   to: string;
   duration: number;
@@ -77,7 +83,7 @@ interface WalkDetails {
 }
 
 interface RouteLeg {
-  type: 'transit' | 'taxi' | 'walk';
+  type: "transit" | "taxi" | "walk";
   from: string;
   to: string;
   durationMin: number;
@@ -107,13 +113,21 @@ interface Station {
   type?: string;
 }
 
-function calculateDistance(lat1: number, lng1: number, lat2: number, lng2: number): number {
+function calculateDistance(
+  lat1: number,
+  lng1: number,
+  lat2: number,
+  lng2: number
+): number {
   const R = 6371;
-  const dLat = (lat2 - lat1) * Math.PI / 180;
-  const dLng = (lng2 - lng1) * Math.PI / 180;
-  const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-    Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
-    Math.sin(dLng / 2) * Math.sin(dLng / 2);
+  const dLat = ((lat2 - lat1) * Math.PI) / 180;
+  const dLng = ((lng2 - lng1) * Math.PI) / 180;
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos((lat1 * Math.PI) / 180) *
+      Math.cos((lat2 * Math.PI) / 180) *
+      Math.sin(dLng / 2) *
+      Math.sin(dLng / 2);
   const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
   return R * c * 1000;
 }
@@ -192,31 +206,41 @@ async function searchTmapRoute(
       endY,
       count: 5,
       lang: 0,
-      format: "json"
+      format: "json",
     };
 
-    console.log("TMAP API Request:", { url, body: requestBody, hasKey: !!TMAP_API_KEY });
+    console.log("TMAP API Request:", {
+      url,
+      body: requestBody,
+      hasKey: !!TMAP_API_KEY,
+    });
 
     const response = await fetch(url, {
       method: "POST",
       headers: {
-        "accept": "application/json",
-        "appKey": TMAP_API_KEY,
+        accept: "application/json",
+        appKey: TMAP_API_KEY,
         "content-type": "application/json",
       },
-      body: JSON.stringify(requestBody)
+      body: JSON.stringify(requestBody),
     });
 
     console.log("TMAP API Response status:", response.status);
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.error("TMAP API error:", { status: response.status, error: errorText });
+      console.error("TMAP API error:", {
+        status: response.status,
+        error: errorText,
+      });
       return null;
     }
 
     const data = await response.json();
-    console.log("TMAP API Response data:", JSON.stringify(data).substring(0, 500));
+    console.log(
+      "TMAP API Response data:",
+      JSON.stringify(data).substring(0, 500)
+    );
     return data;
   } catch (error) {
     console.error("TMAP searchRoute error:", error);
@@ -255,13 +279,17 @@ async function searchNearbyStations(
 
     const response = await fetch(url, {
       headers: {
-        "Authorization": `KakaoAK ${KAKAO_REST_API_KEY}`,
+        Authorization: `KakaoAK ${KAKAO_REST_API_KEY}`,
       },
     });
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.error("Kakao station search error status:", response.status, errorText);
+      console.error(
+        "Kakao station search error status:",
+        response.status,
+        errorText
+      );
       return [];
     }
 
@@ -273,10 +301,12 @@ async function searchNearbyStations(
         stationName: doc.place_name,
         x: parseFloat(doc.x),
         y: parseFloat(doc.y),
-        type: 'station'
+        type: "station",
       }));
 
-      console.log(`Found ${stations.length} stations near (${x}, ${y}) within ${radiusKm}m`);
+      console.log(
+        `Found ${stations.length} stations near (${x}, ${y}) within ${radiusKm}m`
+      );
       return stations;
     }
     console.log(`No stations found near (${x}, ${y}) within ${radiusKm}m`);
@@ -311,8 +341,8 @@ async function getKakaoDirectionsPrecise(
 
     const response = await fetch(url, {
       headers: {
-        'Authorization': `KakaoAK ${KAKAO_REST_API_KEY}`,
-        'Content-Type': 'application/json',
+        Authorization: `KakaoAK ${KAKAO_REST_API_KEY}`,
+        "Content-Type": "application/json",
       },
     });
 
@@ -340,13 +370,16 @@ async function batchTaxiEtaToDestinations(
   try {
     if (destinations.length === 0) return null;
 
-    const destParam = destinations.slice(0, 30).map(d => `${d.x},${d.y}`).join('|');
+    const destParam = destinations
+      .slice(0, 30)
+      .map((d) => `${d.x},${d.y}`)
+      .join("|");
     const url = `https://apis-navi.kakaomobility.com/v1/destinations?origin=${originLng},${originLat}&destinations=${destParam}&priority=RECOMMEND&summary=true`;
 
     const response = await fetch(url, {
       headers: {
-        'Authorization': `KakaoAK ${KAKAO_REST_API_KEY}`,
-        'Content-Type': 'application/json',
+        Authorization: `KakaoAK ${KAKAO_REST_API_KEY}`,
+        "Content-Type": "application/json",
       },
     });
 
@@ -366,13 +399,16 @@ async function batchTaxiEtaFromOrigins(
   try {
     if (origins.length === 0) return null;
 
-    const originsParam = origins.slice(0, 30).map(o => `${o.x},${o.y}`).join('|');
+    const originsParam = origins
+      .slice(0, 30)
+      .map((o) => `${o.x},${o.y}`)
+      .join("|");
     const url = `https://apis-navi.kakaomobility.com/v1/origins?origins=${originsParam}&destination=${destLng},${destLat}&priority=RECOMMEND&summary=true`;
 
     const response = await fetch(url, {
       headers: {
-        'Authorization': `KakaoAK ${KAKAO_REST_API_KEY}`,
-        'Content-Type': 'application/json',
+        Authorization: `KakaoAK ${KAKAO_REST_API_KEY}`,
+        "Content-Type": "application/json",
       },
     });
 
@@ -410,7 +446,10 @@ function screenStationsByEta(
   return screened;
 }
 
-function addArrivalTimes(candidate: RouteCandidate, departureTime: string): void {
+function addArrivalTimes(
+  candidate: RouteCandidate,
+  departureTime: string
+): void {
   candidate.departureTime = departureTime;
   let currentTime = new Date(departureTime);
 
@@ -423,7 +462,15 @@ function addArrivalTimes(candidate: RouteCandidate, departureTime: string): void
 }
 
 async function findOptimalRoute(req: RouteRequest): Promise<RouteResponse> {
-  const { origin, destination, maxTimeMin, maxWalkMin, requireTaxi = false, taxiMaxSegments = 1, departureTime: requestDepartureTime } = req;
+  const {
+    origin,
+    destination,
+    maxTimeMin,
+    maxWalkMin,
+    requireTaxi = false,
+    taxiMaxSegments = 1,
+    departureTime: requestDepartureTime,
+  } = req;
 
   const departureTime = requestDepartureTime || new Date().toISOString();
   const allCandidates: RouteCandidate[] = [];
@@ -440,41 +487,63 @@ async function findOptimalRoute(req: RouteRequest): Promise<RouteResponse> {
     taxiTransitGenerated: 0,
     transitTaxiGenerated: 0,
     poiRadius: 0,
-    tmapKeySet: !!TMAP_API_KEY
+    tmapKeySet: !!TMAP_API_KEY,
   };
 
-  const distanceM = calculateDistance(origin.lat, origin.lng, destination.lat, destination.lng);
+  const distanceM = calculateDistance(
+    origin.lat,
+    origin.lng,
+    destination.lat,
+    destination.lng
+  );
 
   if (distanceM < 700) {
     const walkMin = Math.ceil(distanceM / WALK_SPEED_M_PER_MIN);
     const isFeasible = walkMin <= maxWalkMin && walkMin <= maxTimeMin;
 
     allCandidates.push({
-      id: 'walk-only',
-      type: 'walk-only',
+      id: "walk-only",
+      type: "walk-only",
       totalTimeMin: walkMin,
       totalCostKrw: 0,
       walkTimeMin: walkMin,
       hasTaxi: false,
-      legs: [{
-        type: 'walk',
-        from: origin.name,
-        to: destination.name,
-        durationMin: walkMin,
-        costKrw: 0,
-        details: { distance: distanceM }
-      }],
+      legs: [
+        {
+          type: "walk",
+          from: origin.name,
+          to: destination.name,
+          durationMin: walkMin,
+          costKrw: 0,
+          details: { distance: distanceM },
+        },
+      ],
       slackMin: maxTimeMin - walkMin,
-      isFeasible
+      isFeasible,
     });
 
-    return buildResponse(allCandidates, maxTimeMin, maxWalkMin, requireTaxi, departureTime, debugInfo);
+    return buildResponse(
+      allCandidates,
+      maxTimeMin,
+      maxWalkMin,
+      requireTaxi,
+      departureTime,
+      debugInfo
+    );
   }
 
   debugInfo.tmapCalled = true;
-  const tmapData = await searchTmapRoute(origin.lng, origin.lat, destination.lng, destination.lat);
+  const tmapData = await searchTmapRoute(
+    origin.lng,
+    origin.lat,
+    destination.lng,
+    destination.lat
+  );
 
-  if (tmapData?.metaData?.plan?.itineraries && tmapData.metaData.plan.itineraries.length > 0) {
+  if (
+    tmapData?.metaData?.plan?.itineraries &&
+    tmapData.metaData.plan.itineraries.length > 0
+  ) {
     debugInfo.tmapSuccess = true;
     debugInfo.tmapItineraryCount = tmapData.metaData.plan.itineraries.length;
     for (const itinerary of tmapData.metaData.plan.itineraries.slice(0, 5)) {
@@ -487,30 +556,35 @@ async function findOptimalRoute(req: RouteRequest): Promise<RouteResponse> {
 
       if (itinerary.legs) {
         for (const leg of itinerary.legs) {
-          if (leg.mode === 'WALK') {
+          if (leg.mode === "WALK") {
             totalWalkM += leg.distance || 0;
           }
-          if (leg.mode === 'BUS') busTransfers++;
-          if (leg.mode === 'SUBWAY') subwayTransfers++;
+          if (leg.mode === "BUS") busTransfers++;
+          if (leg.mode === "SUBWAY") subwayTransfers++;
         }
       }
 
-      const walkTimeMin = estimateWalkTimeMin(totalWalkM, subwayTransfers, busTransfers);
-      const isFeasible = totalTimeMin <= maxTimeMin && walkTimeMin <= maxWalkMin;
+      const walkTimeMin = estimateWalkTimeMin(
+        totalWalkM,
+        subwayTransfers,
+        busTransfers
+      );
+      const isFeasible =
+        totalTimeMin <= maxTimeMin && walkTimeMin <= maxWalkMin;
 
       const transitSteps: TransitStep[] = [];
       if (itinerary.legs) {
         for (const leg of itinerary.legs) {
           const step: TransitStep = {
-            mode: leg.mode as 'WALK' | 'BUS' | 'SUBWAY',
-            from: leg.start?.name || '',
-            to: leg.end?.name || '',
+            mode: leg.mode as "WALK" | "BUS" | "SUBWAY",
+            from: leg.start?.name || "",
+            to: leg.end?.name || "",
             duration: leg.sectionTime || 0,
             distance: leg.distance,
             route: leg.route,
             routeColor: leg.routeColor,
             service: leg.service,
-            stationCount: leg.passStopList?.stations?.length || 0
+            stationCount: leg.passStopList?.stations?.length || 0,
           };
           transitSteps.push(step);
         }
@@ -518,27 +592,29 @@ async function findOptimalRoute(req: RouteRequest): Promise<RouteResponse> {
 
       const candidate: RouteCandidate = {
         id: `transit-${itinerary.pathType || allCandidates.length}`,
-        type: 'transit-only',
+        type: "transit-only",
         totalTimeMin,
         totalCostKrw,
         walkTimeMin,
         hasTaxi: false,
-        legs: [{
-          type: 'transit',
-          from: origin.name,
-          to: destination.name,
-          durationMin: totalTimeMin,
-          costKrw: totalCostKrw,
-          details: {
-            totalWalkM,
-            busCount: busTransfers,
-            subwayCount: subwayTransfers,
-            pathType: itinerary.pathType,
-            steps: transitSteps
-          }
-        }],
+        legs: [
+          {
+            type: "transit",
+            from: origin.name,
+            to: destination.name,
+            durationMin: totalTimeMin,
+            costKrw: totalCostKrw,
+            details: {
+              totalWalkM,
+              busCount: busTransfers,
+              subwayCount: subwayTransfers,
+              pathType: itinerary.pathType,
+              steps: transitSteps,
+            },
+          },
+        ],
         slackMin: maxTimeMin - totalTimeMin,
-        isFeasible
+        isFeasible,
       };
 
       allCandidates.push(candidate);
@@ -549,41 +625,51 @@ async function findOptimalRoute(req: RouteRequest): Promise<RouteResponse> {
     }
   }
 
-  const kakaoTaxiData = await getKakaoDirectionsPrecise(origin.lng, origin.lat, destination.lng, destination.lat);
+  const kakaoTaxiData = await getKakaoDirectionsPrecise(
+    origin.lng,
+    origin.lat,
+    destination.lng,
+    destination.lat
+  );
 
   if (kakaoTaxiData?.routes?.[0]?.summary) {
     const summary = kakaoTaxiData.routes[0].summary;
 
     if (summary.duration !== undefined && summary.distance !== undefined) {
-      const durationMin = Math.ceil(summary.duration / 60) + TAXI_PICKUP_BUFFER_MIN;
-      const taxiFare = summary.fare?.taxi || Math.ceil(4800 + (summary.distance / 1000) * 1000);
+      const durationMin =
+        Math.ceil(summary.duration / 60) + TAXI_PICKUP_BUFFER_MIN;
+      const taxiFare =
+        summary.fare?.taxi ||
+        Math.ceil(4800 + (summary.distance / 1000) * 1000);
       const tollFare = summary.fare?.toll || 0;
       const totalCost = taxiFare + tollFare;
 
       const isFeasible = durationMin <= maxTimeMin;
 
       allCandidates.push({
-        id: 'taxi-only',
-        type: 'taxi-only',
+        id: "taxi-only",
+        type: "taxi-only",
         totalTimeMin: durationMin,
         totalCostKrw: totalCost,
         walkTimeMin: 0,
         hasTaxi: true,
-        legs: [{
-          type: 'taxi',
-          from: origin.name,
-          to: destination.name,
-          durationMin,
-          costKrw: totalCost,
-          details: {
-            distance: summary.distance,
-            duration: summary.duration,
-            taxiFare,
-            tollFare
-          }
-        }],
+        legs: [
+          {
+            type: "taxi",
+            from: origin.name,
+            to: destination.name,
+            durationMin,
+            costKrw: totalCost,
+            details: {
+              distance: summary.distance,
+              duration: summary.duration,
+              taxiFare,
+              tollFare,
+            },
+          },
+        ],
         slackMin: maxTimeMin - durationMin,
-        isFeasible
+        isFeasible,
       });
 
       if (isFeasible) {
@@ -598,7 +684,7 @@ async function findOptimalRoute(req: RouteRequest): Promise<RouteResponse> {
 
     const [stationsNearO, stationsNearD] = await Promise.all([
       searchNearbyStations(origin.lng, origin.lat, poiRadius),
-      searchNearbyStations(destination.lng, destination.lat, poiRadius)
+      searchNearbyStations(destination.lng, destination.lat, poiRadius),
     ]);
 
     debugInfo.stationsNearOrigin = stationsNearO.length;
@@ -608,15 +694,23 @@ async function findOptimalRoute(req: RouteRequest): Promise<RouteResponse> {
       const batchEta = await batchTaxiEtaToDestinations(
         origin.lng,
         origin.lat,
-        stationsNearO.map(s => ({ x: s.x, y: s.y }))
+        stationsNearO.map((s) => ({ x: s.x, y: s.y }))
       );
 
       let screenedStationsO = stationsNearO;
       if (batchEta?.routes) {
-        screenedStationsO = screenStationsByEta(stationsNearO, batchEta.routes, TAXI_ROI_WINDOW_PRIMARY);
+        screenedStationsO = screenStationsByEta(
+          stationsNearO,
+          batchEta.routes,
+          TAXI_ROI_WINDOW_PRIMARY
+        );
 
         if (screenedStationsO.length < 5) {
-          screenedStationsO = screenStationsByEta(stationsNearO, batchEta.routes, TAXI_ROI_WINDOW_EXPAND);
+          screenedStationsO = screenStationsByEta(
+            stationsNearO,
+            batchEta.routes,
+            TAXI_ROI_WINDOW_EXPAND
+          );
         }
       }
 
@@ -624,20 +718,39 @@ async function findOptimalRoute(req: RouteRequest): Promise<RouteResponse> {
 
       for (const station of topStationsO) {
         debugInfo.taxiTransitAttempts++;
-        const taxiLeg = await getKakaoDirectionsPrecise(origin.lng, origin.lat, station.x, station.y);
+        const taxiLeg = await getKakaoDirectionsPrecise(
+          origin.lng,
+          origin.lat,
+          station.x,
+          station.y
+        );
 
         if (!taxiLeg?.routes?.[0]?.summary) continue;
 
         const taxiSummary = taxiLeg.routes[0].summary;
-        const taxiDurationMin = Math.ceil(taxiSummary.duration / 60) + TAXI_PICKUP_BUFFER_MIN;
-        const taxiFare = taxiSummary.fare?.taxi || Math.ceil(4800 + (taxiSummary.distance / 1000) * 1000);
+        const taxiDurationMin =
+          Math.ceil(taxiSummary.duration / 60) + TAXI_PICKUP_BUFFER_MIN;
+        const taxiFare =
+          taxiSummary.fare?.taxi ||
+          Math.ceil(4800 + (taxiSummary.distance / 1000) * 1000);
         const tollFare = taxiSummary.fare?.toll || 0;
         const taxiCost = taxiFare + tollFare;
 
-        const transitPaths = await searchTmapRoute(station.x, station.y, destination.lng, destination.lat);
+        const transitPaths = await searchTmapRoute(
+          station.x,
+          station.y,
+          destination.lng,
+          destination.lat
+        );
 
-        if (transitPaths?.metaData?.plan?.itineraries && transitPaths.metaData.plan.itineraries.length > 0) {
-          for (const itinerary of transitPaths.metaData.plan.itineraries.slice(0, 3)) {
+        if (
+          transitPaths?.metaData?.plan?.itineraries &&
+          transitPaths.metaData.plan.itineraries.length > 0
+        ) {
+          for (const itinerary of transitPaths.metaData.plan.itineraries.slice(
+            0,
+            3
+          )) {
             const transitTimeMin = Math.ceil(itinerary.totalTime / 60);
             const transitCost = itinerary.fare?.regular?.totalFare || 0;
 
@@ -647,15 +760,17 @@ async function findOptimalRoute(req: RouteRequest): Promise<RouteResponse> {
 
             if (itinerary.legs) {
               for (const leg of itinerary.legs) {
-                if (leg.mode === 'WALK') {
+                if (leg.mode === "WALK") {
                   totalWalkM += leg.distance || 0;
                 }
-                if (leg.mode === 'BUS') busTransfers++;
-                if (leg.mode === 'SUBWAY') subwayTransfers++;
+                if (leg.mode === "BUS") busTransfers++;
+                if (leg.mode === "SUBWAY") subwayTransfers++;
               }
             }
 
-            const walkTimeMin = estimateWalkTimeMin(totalWalkM, subwayTransfers, busTransfers) + DROPOFF_TO_PLATFORM_BUFFER_MIN;
+            const walkTimeMin =
+              estimateWalkTimeMin(totalWalkM, subwayTransfers, busTransfers) +
+              DROPOFF_TO_PLATFORM_BUFFER_MIN;
             const totalTime = taxiDurationMin + transitTimeMin;
             const totalCost = taxiCost + transitCost;
 
@@ -664,15 +779,15 @@ async function findOptimalRoute(req: RouteRequest): Promise<RouteResponse> {
               if (itinerary.legs) {
                 for (const leg of itinerary.legs) {
                   const step: TransitStep = {
-                    mode: leg.mode as 'WALK' | 'BUS' | 'SUBWAY',
-                    from: leg.start?.name || '',
-                    to: leg.end?.name || '',
+                    mode: leg.mode as "WALK" | "BUS" | "SUBWAY",
+                    from: leg.start?.name || "",
+                    to: leg.end?.name || "",
                     duration: leg.sectionTime || 0,
                     distance: leg.distance,
                     route: leg.route,
                     routeColor: leg.routeColor,
                     service: leg.service,
-                    stationCount: leg.passStopList?.stations?.length || 0
+                    stationCount: leg.passStopList?.stations?.length || 0,
                   };
                   transitSteps.push(step);
                 }
@@ -680,31 +795,36 @@ async function findOptimalRoute(req: RouteRequest): Promise<RouteResponse> {
 
               const candidate: RouteCandidate = {
                 id: `taxi-transit-${station.stationID}-${itinerary.pathType}`,
-                type: 'taxi-transit',
+                type: "taxi-transit",
                 totalTimeMin: totalTime,
                 totalCostKrw: totalCost,
                 walkTimeMin,
                 hasTaxi: true,
                 legs: [
                   {
-                    type: 'taxi',
+                    type: "taxi",
                     from: origin.name,
                     to: station.stationName,
                     durationMin: taxiDurationMin,
                     costKrw: taxiCost,
-                    details: { taxiFare, tollFare }
+                    details: { taxiFare, tollFare },
                   },
                   {
-                    type: 'transit',
+                    type: "transit",
                     from: station.stationName,
                     to: destination.name,
                     durationMin: transitTimeMin,
                     costKrw: transitCost,
-                    details: { totalWalkM, busCount: busTransfers, subwayCount: subwayTransfers, steps: transitSteps }
-                  }
+                    details: {
+                      totalWalkM,
+                      busCount: busTransfers,
+                      subwayCount: subwayTransfers,
+                      steps: transitSteps,
+                    },
+                  },
                 ],
                 slackMin: maxTimeMin - totalTime,
-                isFeasible: true
+                isFeasible: true,
               };
 
               allCandidates.push(candidate);
@@ -718,17 +838,25 @@ async function findOptimalRoute(req: RouteRequest): Promise<RouteResponse> {
 
     if (stationsNearD.length > 0) {
       const batchEta = await batchTaxiEtaFromOrigins(
-        stationsNearD.map(s => ({ x: s.x, y: s.y })),
+        stationsNearD.map((s) => ({ x: s.x, y: s.y })),
         destination.lng,
         destination.lat
       );
 
       let screenedStationsD = stationsNearD;
       if (batchEta?.routes) {
-        screenedStationsD = screenStationsByEta(stationsNearD, batchEta.routes, TAXI_ROI_WINDOW_PRIMARY);
+        screenedStationsD = screenStationsByEta(
+          stationsNearD,
+          batchEta.routes,
+          TAXI_ROI_WINDOW_PRIMARY
+        );
 
         if (screenedStationsD.length < 5) {
-          screenedStationsD = screenStationsByEta(stationsNearD, batchEta.routes, TAXI_ROI_WINDOW_EXPAND);
+          screenedStationsD = screenStationsByEta(
+            stationsNearD,
+            batchEta.routes,
+            TAXI_ROI_WINDOW_EXPAND
+          );
         }
       }
 
@@ -736,21 +864,41 @@ async function findOptimalRoute(req: RouteRequest): Promise<RouteResponse> {
 
       for (const station of topStationsD) {
         debugInfo.transitTaxiAttempts++;
-        const transitPaths = await searchTmapRoute(origin.lng, origin.lat, station.x, station.y);
+        const transitPaths = await searchTmapRoute(
+          origin.lng,
+          origin.lat,
+          station.x,
+          station.y
+        );
 
-        if (!transitPaths?.metaData?.plan?.itineraries || transitPaths.metaData.plan.itineraries.length === 0) continue;
+        if (
+          !transitPaths?.metaData?.plan?.itineraries ||
+          transitPaths.metaData.plan.itineraries.length === 0
+        )
+          continue;
 
-        const taxiLeg = await getKakaoDirectionsPrecise(station.x, station.y, destination.lng, destination.lat);
+        const taxiLeg = await getKakaoDirectionsPrecise(
+          station.x,
+          station.y,
+          destination.lng,
+          destination.lat
+        );
 
         if (!taxiLeg?.routes?.[0]?.summary) continue;
 
         const taxiSummary = taxiLeg.routes[0].summary;
-        const taxiDurationMin = Math.ceil(taxiSummary.duration / 60) + TAXI_PICKUP_BUFFER_MIN;
-        const taxiFare = taxiSummary.fare?.taxi || Math.ceil(4800 + (taxiSummary.distance / 1000) * 1000);
+        const taxiDurationMin =
+          Math.ceil(taxiSummary.duration / 60) + TAXI_PICKUP_BUFFER_MIN;
+        const taxiFare =
+          taxiSummary.fare?.taxi ||
+          Math.ceil(4800 + (taxiSummary.distance / 1000) * 1000);
         const tollFare = taxiSummary.fare?.toll || 0;
         const taxiCost = taxiFare + tollFare;
 
-        for (const itinerary of transitPaths.metaData.plan.itineraries.slice(0, 3)) {
+        for (const itinerary of transitPaths.metaData.plan.itineraries.slice(
+          0,
+          3
+        )) {
           const transitTimeMin = Math.ceil(itinerary.totalTime / 60);
           const transitCost = itinerary.fare?.regular?.totalFare || 0;
 
@@ -760,15 +908,17 @@ async function findOptimalRoute(req: RouteRequest): Promise<RouteResponse> {
 
           if (itinerary.legs) {
             for (const leg of itinerary.legs) {
-              if (leg.mode === 'WALK') {
+              if (leg.mode === "WALK") {
                 totalWalkM += leg.distance || 0;
               }
-              if (leg.mode === 'BUS') busTransfers++;
-              if (leg.mode === 'SUBWAY') subwayTransfers++;
+              if (leg.mode === "BUS") busTransfers++;
+              if (leg.mode === "SUBWAY") subwayTransfers++;
             }
           }
 
-          const walkTimeMin = estimateWalkTimeMin(totalWalkM, subwayTransfers, busTransfers) + DROPOFF_TO_PLATFORM_BUFFER_MIN;
+          const walkTimeMin =
+            estimateWalkTimeMin(totalWalkM, subwayTransfers, busTransfers) +
+            DROPOFF_TO_PLATFORM_BUFFER_MIN;
           const totalTime = transitTimeMin + taxiDurationMin;
           const totalCost = transitCost + taxiCost;
 
@@ -777,15 +927,15 @@ async function findOptimalRoute(req: RouteRequest): Promise<RouteResponse> {
             if (itinerary.legs) {
               for (const leg of itinerary.legs) {
                 const step: TransitStep = {
-                  mode: leg.mode as 'WALK' | 'BUS' | 'SUBWAY',
-                  from: leg.start?.name || '',
-                  to: leg.end?.name || '',
+                  mode: leg.mode as "WALK" | "BUS" | "SUBWAY",
+                  from: leg.start?.name || "",
+                  to: leg.end?.name || "",
                   duration: leg.sectionTime || 0,
                   distance: leg.distance,
                   route: leg.route,
                   routeColor: leg.routeColor,
                   service: leg.service,
-                  stationCount: leg.passStopList?.stations?.length || 0
+                  stationCount: leg.passStopList?.stations?.length || 0,
                 };
                 transitSteps.push(step);
               }
@@ -793,31 +943,36 @@ async function findOptimalRoute(req: RouteRequest): Promise<RouteResponse> {
 
             const candidate: RouteCandidate = {
               id: `transit-taxi-${station.stationID}-${itinerary.pathType}`,
-              type: 'transit-taxi',
+              type: "transit-taxi",
               totalTimeMin: totalTime,
               totalCostKrw: totalCost,
               walkTimeMin,
               hasTaxi: true,
               legs: [
                 {
-                  type: 'transit',
+                  type: "transit",
                   from: origin.name,
                   to: station.stationName,
                   durationMin: transitTimeMin,
                   costKrw: transitCost,
-                  details: { totalWalkM, busCount: busTransfers, subwayCount: subwayTransfers, steps: transitSteps }
+                  details: {
+                    totalWalkM,
+                    busCount: busTransfers,
+                    subwayCount: subwayTransfers,
+                    steps: transitSteps,
+                  },
                 },
                 {
-                  type: 'taxi',
+                  type: "taxi",
                   from: station.stationName,
                   to: destination.name,
                   durationMin: taxiDurationMin,
                   costKrw: taxiCost,
-                  details: { taxiFare, tollFare }
-                }
+                  details: { taxiFare, tollFare },
+                },
               ],
               slackMin: maxTimeMin - totalTime,
-              isFeasible: true
+              isFeasible: true,
             };
 
             allCandidates.push(candidate);
@@ -829,7 +984,14 @@ async function findOptimalRoute(req: RouteRequest): Promise<RouteResponse> {
     }
   }
 
-  return buildResponse(allCandidates, maxTimeMin, maxWalkMin, requireTaxi, departureTime, debugInfo);
+  return buildResponse(
+    allCandidates,
+    maxTimeMin,
+    maxWalkMin,
+    requireTaxi,
+    departureTime,
+    debugInfo
+  );
 }
 
 function buildResponse(
@@ -838,16 +1000,20 @@ function buildResponse(
   maxWalkMin: number,
   requireTaxi: boolean,
   departureTime: string,
-  debugInfo?: { tmapCalled?: boolean; tmapSuccess?: boolean; tmapItineraryCount?: number }
+  debugInfo?: {
+    tmapCalled?: boolean;
+    tmapSuccess?: boolean;
+    tmapItineraryCount?: number;
+  }
 ): RouteResponse {
   for (const candidate of allCandidates) {
     addArrivalTimes(candidate, departureTime);
   }
 
-  let feasibleCandidates = allCandidates.filter(c => c.isFeasible);
+  let feasibleCandidates = allCandidates.filter((c) => c.isFeasible);
 
   if (requireTaxi) {
-    feasibleCandidates = feasibleCandidates.filter(c => c.hasTaxi);
+    feasibleCandidates = feasibleCandidates.filter((c) => c.hasTaxi);
   }
 
   const sortedFeasible = feasibleCandidates.sort((a, b) => {
@@ -866,11 +1032,13 @@ function buildResponse(
       minPossibleTimeMin: null,
       minPossibleWalkMin: null,
       constraints: { maxTimeMin, maxWalkMin },
-      ...(debugInfo && { debug: debugInfo })
+      ...(debugInfo && { debug: debugInfo }),
     } as RouteResponse;
   }
 
-  const allSorted = allCandidates.sort((a, b) => a.totalTimeMin - b.totalTimeMin);
+  const allSorted = allCandidates.sort(
+    (a, b) => a.totalTimeMin - b.totalTimeMin
+  );
   const minTimeCandidate = allSorted[0];
 
   return {
@@ -881,7 +1049,7 @@ function buildResponse(
     minPossibleTimeMin: minTimeCandidate?.totalTimeMin ?? null,
     minPossibleWalkMin: minTimeCandidate?.walkTimeMin ?? null,
     constraints: { maxTimeMin, maxWalkMin },
-    ...(debugInfo && { debug: debugInfo })
+    ...(debugInfo && { debug: debugInfo }),
   } as RouteResponse;
 }
 
@@ -896,7 +1064,12 @@ Deno.serve(async (req: Request) => {
   try {
     const body: RouteRequest = await req.json();
 
-    if (!body.origin || !body.destination || !body.maxTimeMin || !body.maxWalkMin) {
+    if (
+      !body.origin ||
+      !body.destination ||
+      !body.maxTimeMin ||
+      !body.maxWalkMin
+    ) {
       return new Response(
         JSON.stringify({ error: "Missing required fields" }),
         {
@@ -911,21 +1084,18 @@ Deno.serve(async (req: Request) => {
 
     const result = await findOptimalRoute(body);
 
-    return new Response(
-      JSON.stringify(result),
-      {
-        headers: {
-          ...corsHeaders,
-          "Content-Type": "application/json",
-        },
-      }
-    );
+    return new Response(JSON.stringify(result), {
+      headers: {
+        ...corsHeaders,
+        "Content-Type": "application/json",
+      },
+    });
   } catch (error) {
     console.error("Function error:", error);
     return new Response(
       JSON.stringify({
         success: false,
-        error: error instanceof Error ? error.message : "Unknown error"
+        error: error instanceof Error ? error.message : "Unknown error",
       }),
       {
         status: 500,

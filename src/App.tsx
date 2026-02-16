@@ -1,10 +1,21 @@
-import { useState } from 'react';
-import RouteSearchForm from './components/RouteSearchForm';
-import RouteResults from './components/RouteResults';
-import { RouteResponse } from './types';
+import { useState } from "react";
+import RouteSearchForm from "./components/RouteSearchForm";
+import RouteResults from "./components/RouteResults";
+import { RouteResponse } from "./types";
+import { AlertTriangle } from "lucide-react";
+
+function Card({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="rounded-2xl bg-white border border-gray-200/70 shadow-[0_8px_24px_rgba(17,24,39,0.06)]">
+      {children}
+    </div>
+  );
+}
 
 function App() {
-  const [routeResponse, setRouteResponse] = useState<RouteResponse | null>(null);
+  const [routeResponse, setRouteResponse] = useState<RouteResponse | null>(
+    null
+  );
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -20,44 +31,80 @@ function App() {
 
   const handleLoadingChange = (isLoading: boolean) => {
     setLoading(isLoading);
+    if (isLoading) setError(null);
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-green-50">
-      <div className="container mx-auto px-4 py-8 max-w-5xl">
-        <header className="text-center mb-12">
-          <h1 className="text-5xl font-bold text-gray-900 mb-3">
+    <div className="min-h-screen bg-[#F5F6F7] font-sans">
+      <div className="mx-auto max-w-[680px] px-4 py-6">
+        {/* Header */}
+        <header className="mb-5">
+          <h1 className="text-[22px] font-semibold text-gray-900 tracking-[-0.2px]">
             늦지마
           </h1>
-          <p className="text-lg text-gray-600">
-            시간 내에 목적지까지, 최적의 경로를 찾아드립니다
+          <p className="mt-1 text-[13px] text-gray-500">
+            어떻게든 늦지 않게 만들어 드려요.
           </p>
         </header>
 
-        <div className="mb-8">
+        {/* Search Form */}
+        <Card>
           <RouteSearchForm
             onSearch={handleSearch}
             onError={handleError}
             onLoadingChange={handleLoadingChange}
           />
-        </div>
+        </Card>
 
+        {/* Error */}
         {error && (
-          <div className="bg-red-50 border border-red-200 text-red-800 px-6 py-4 rounded-lg mb-6">
-            <p className="font-medium">오류가 발생했습니다</p>
-            <p className="text-sm mt-1 whitespace-pre-line">{error}</p>
+          <div className="mt-4">
+            <Card>
+              <div className="px-4 py-4">
+                <div className="flex items-start gap-3">
+                  <div className="mt-0.5 flex h-8 w-8 items-center justify-center rounded-xl bg-red-50 border border-red-100 text-red-700">
+                    <AlertTriangle className="h-4 w-4" />
+                  </div>
+                  <div>
+                    <div className="text-[14px] font-semibold text-gray-900">
+                      문제가 발생했습니다
+                    </div>
+                    <div className="mt-1 text-[13px] text-gray-600 whitespace-pre-line">
+                      {error}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </Card>
           </div>
         )}
 
+        {/* Loading */}
         {loading && (
-          <div className="text-center py-12">
-            <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
-            <p className="mt-4 text-gray-600">최적 경로를 찾고 있습니다...</p>
+          <div className="mt-4">
+            <Card>
+              <div className="px-4 py-4">
+                <div className="flex items-center gap-3">
+                  <div className="h-5 w-5 animate-spin rounded-full border-2 border-gray-200 border-t-blue-600" />
+                  <div>
+                    <div className="text-[14px] font-semibold text-gray-900">
+                      경로를 찾는 중
+                    </div>
+                    <div className="mt-0.5 text-[12px] text-gray-500">
+                      교통/택시 후보를 계산하고 있어요.
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </Card>
           </div>
         )}
 
+        {/* Results */}
         {!loading && routeResponse && routeResponse.routes.length > 0 && (
-          <RouteResults response={routeResponse} />
+          <div className="mt-4">
+            <RouteResults response={routeResponse} />
+          </div>
         )}
       </div>
     </div>

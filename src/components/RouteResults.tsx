@@ -1,81 +1,214 @@
-import { useState } from 'react';
-import { AlertTriangle, Bus, Car, Clock, DollarSign, TrendingUp, Wallet, Activity, ChevronDown, ChevronUp, Footprints, Train } from 'lucide-react';
-import { RouteResponse, RouteCandidate, TransitDetails } from '../types';
+import { useMemo, useState } from "react";
+import {
+  AlertTriangle,
+  Bus,
+  Car,
+  Clock,
+  TrendingUp,
+  Wallet,
+  Activity,
+  ChevronDown,
+  ChevronUp,
+  Footprints,
+  Train,
+} from "lucide-react";
+import { RouteResponse, RouteCandidate } from "../types";
 
 interface Props {
   response: RouteResponse;
 }
 
 const ROUTE_TYPE_LABELS: Record<string, string> = {
-  'transit-only': '대중교통',
-  'taxi-only': '택시',
-  'taxi-transit': '택시 + 대중교통',
-  'transit-taxi': '대중교통 + 택시',
-  'walk-only': '도보',
+  "transit-only": "대중교통",
+  "taxi-only": "택시",
+  "taxi-transit": "대중교통+택시",
+  "transit-taxi": "대중교통+택시",
+  "walk-only": "도보",
 };
 
-const ROUTE_TYPE_COLORS: Record<string, string> = {
-  'transit-only': 'bg-green-100 text-green-800 border-green-200',
-  'taxi-only': 'bg-yellow-100 text-yellow-800 border-yellow-200',
-  'taxi-transit': 'bg-blue-100 text-blue-800 border-blue-200',
-  'transit-taxi': 'bg-orange-100 text-orange-800 border-orange-200',
-  'walk-only': 'bg-gray-100 text-gray-800 border-gray-200',
+const ROUTE_TYPE_BADGE: Record<string, string> = {
+  "transit-only": "bg-green-100 text-green-800 border-green-200",
+  "taxi-only": "bg-yellow-100 text-yellow-800 border-yellow-200",
+  "taxi-transit": "bg-blue-100 text-blue-800 border-blue-200",
+  "transit-taxi": "bg-blue-100 text-blue-800 border-blue-200",
+  "walk-only": "bg-gray-100 text-gray-800 border-gray-200",
 };
 
 function formatTime(isoString?: string): string {
-  if (!isoString) return '';
+  if (!isoString) return "";
   const date = new Date(isoString);
-  return date.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', hour12: false });
+  return date.toLocaleTimeString("ko-KR", {
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  });
 }
 
-function RouteCard({ route, isBest = false }: { route: RouteCandidate; isBest?: boolean }) {
+function normalizeHex(color: string | undefined): string | null {
+  if (!color) return null;
+  const c = color.trim();
+  if (!c) return null;
+
+  if (c.startsWith("#")) {
+    const hex = c.slice(1);
+    if (/^[0-9a-fA-F]{6}$/.test(hex)) return `#${hex.toUpperCase()}`;
+    if (/^[0-9a-fA-F]{3}$/.test(hex)) {
+      const r = hex[0];
+      const g = hex[1];
+      const b = hex[2];
+      return `#${(r + r + g + g + b + b).toUpperCase()}`;
+    }
+    return null;
+  }
+
+  return null;
+}
+
+function pickTextColorFromHex(bgHex: string | undefined): string {
+  const normalized = normalizeHex(bgHex);
+  if (!normalized) return "#111827";
+
+  const hex = normalized.replace("#", "");
+  const r = parseInt(hex.slice(0, 2), 16);
+  const g = parseInt(hex.slice(2, 4), 16);
+  const b = parseInt(hex.slice(4, 6), 16);
+
+  const luminance = (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255;
+  return luminance > 0.62 ? "#111827" : "#FFFFFF";
+}
+
+function isMeaninglessWalkStep(step: any): boolean {
+  if (!step) return true;
+  if (step.mode !== "WALK") return false;
+
+  const durMin = Math.ceil((step.duration ?? 0) / 60);
+  const dist = step.distance ?? 0;
+  const from = (step.from ?? "").trim();
+  const to = (step.to ?? "").trim();
+
+  if (from && to && from === to) return true;
+  if (durMin <= 0) return true;
+  if (dist <= 0 && durMin <= 1) return true;
+  return false;
+}
+
+function RouteCard({
+  route,
+  isBest = false,
+}: {
+  route: RouteCandidate;
+  isBest?: boolean;
+}) {
   const [expanded, setExpanded] = useState(isBest);
 
+  const timeLine = useMemo(() => {
+    const dep = formatTime(route.departureTime);
+    const arr = formatTime(route.arrivalTime);
+    if (!dep || !arr) return "";
+    return `${dep} → ${arr}`;
+  }, [route.departureTime, route.arrivalTime]);
+
+  const slackLabel = useMemo(() => {
+    if (typeof route.slackMin !== "number") return null;
+    if (route.slackMin <= 0) return null;
+    return `여유 ${route.slackMin}분`;
+  }, [route.slackMin]);
+
+  const typeLabel = ROUTE_TYPE_LABELS[route.type] ?? route.type;
+
   return (
-    <div className={`${isBest ? 'bg-gradient-to-r from-blue-500 to-green-500 text-white' : 'bg-white border border-gray-200'} rounded-xl shadow-lg p-6`}>
-      <div className="flex items-center justify-between mb-4">
-        <div className="flex items-center space-x-2">
-          {isBest && <TrendingUp className="w-6 h-6" />}
-          <h3 className={`text-xl font-bold ${isBest ? 'text-white' : 'text-gray-900'}`}>
-            {isBest ? '최적 경로' : ROUTE_TYPE_LABELS[route.type]}
-          </h3>
+    <div
+      className={`rounded-2xl shadow-lg p-6 ${
+        isBest
+          ? "bg-gradient-to-r from-blue-600 to-green-600 text-white"
+          : "bg-white border border-gray-200"
+      }`}
+    >
+      <div className="flex items-start justify-between gap-3 mb-4">
+        <div className="min-w-0">
+          <div className="flex items-center gap-2">
+            {isBest && <TrendingUp className="w-6 h-6" />}
+            <h3
+              className={`text-xl font-bold ${
+                isBest ? "text-white" : "text-gray-900"
+              }`}
+            >
+              {isBest ? "추천" : typeLabel}
+            </h3>
+
+            {isBest && (
+              <span className="px-3 py-1 rounded-full text-sm font-semibold bg-white/20 text-white">
+                {typeLabel}
+              </span>
+            )}
+          </div>
+
+          {(timeLine || slackLabel) && (
+            <div
+              className={`mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm ${
+                isBest ? "text-white/90" : "text-gray-600"
+              }`}
+            >
+              {timeLine && (
+                <div className="flex items-center">
+                  <Clock className="w-4 h-4 mr-1" />
+                  {timeLine}
+                </div>
+              )}
+              {slackLabel && (
+                <div className="flex items-center">
+                  <Activity className="w-4 h-4 mr-1" />
+                  {slackLabel}
+                </div>
+              )}
+            </div>
+          )}
         </div>
-        <span className={`px-3 py-1 rounded-full text-sm font-semibold ${isBest ? 'bg-white bg-opacity-20' : ROUTE_TYPE_COLORS[route.type] + ' border'}`}>
-          {ROUTE_TYPE_LABELS[route.type]}
-        </span>
+
+        <button
+          type="button"
+          onClick={() => setExpanded(!expanded)}
+          aria-label={expanded ? "접기" : "열기"}
+          className={`shrink-0 rounded-xl p-2 transition ${
+            isBest
+              ? "bg-white/15 hover:bg-white/20"
+              : "bg-gray-100 hover:bg-gray-200"
+          }`}
+        >
+          {expanded ? (
+            <ChevronUp className="w-5 h-5" />
+          ) : (
+            <ChevronDown className="w-5 h-5" />
+          )}
+        </button>
       </div>
 
-      {route.departureTime && route.arrivalTime && (
-        <div className={`mb-4 flex items-center space-x-4 text-sm ${isBest ? 'text-white opacity-90' : 'text-gray-600'}`}>
-          <div className="flex items-center">
-            <Clock className="w-4 h-4 mr-1" />
-            출발: {formatTime(route.departureTime)}
-          </div>
-          <div className="flex items-center">
-            <Clock className="w-4 h-4 mr-1" />
-            도착: {formatTime(route.arrivalTime)}
-          </div>
-        </div>
-      )}
-
       <div className="grid grid-cols-3 gap-4 mb-4">
-        <div className={`${isBest ? 'bg-white bg-opacity-10' : 'bg-gray-50'} rounded-lg p-3`}>
+        <div
+          className={`${isBest ? "bg-white/10" : "bg-gray-50"} rounded-xl p-3`}
+        >
           <div className="flex items-center mb-1">
             <Clock className="w-4 h-4 mr-2" />
-            <span className="text-xs opacity-80">소요시간</span>
+            <span className="text-xs opacity-80">소요</span>
           </div>
           <p className="text-2xl font-bold">{route.totalTimeMin}분</p>
         </div>
 
-        <div className={`${isBest ? 'bg-white bg-opacity-10' : 'bg-gray-50'} rounded-lg p-3`}>
+        <div
+          className={`${isBest ? "bg-white/10" : "bg-gray-50"} rounded-xl p-3`}
+        >
           <div className="flex items-center mb-1">
             <Wallet className="w-4 h-4 mr-2" />
-            <span className="text-xs opacity-80">요금</span>
+            <span className="text-xs opacity-80">총 요금</span>
           </div>
-          <p className="text-2xl font-bold">{route.totalCostKrw.toLocaleString()}원</p>
+          <p className="text-2xl font-bold">
+            {route.totalCostKrw.toLocaleString()}원
+          </p>
         </div>
 
-        <div className={`${isBest ? 'bg-white bg-opacity-10' : 'bg-gray-50'} rounded-lg p-3`}>
+        <div
+          className={`${isBest ? "bg-white/10" : "bg-gray-50"} rounded-xl p-3`}
+        >
           <div className="flex items-center mb-1">
             <Activity className="w-4 h-4 mr-2" />
             <span className="text-xs opacity-80">도보</span>
@@ -84,85 +217,213 @@ function RouteCard({ route, isBest = false }: { route: RouteCandidate; isBest?: 
         </div>
       </div>
 
-      <button
-        onClick={() => setExpanded(!expanded)}
-        className={`w-full flex items-center justify-between ${isBest ? 'bg-white bg-opacity-10' : 'bg-gray-100'} rounded-lg p-3 mb-3 hover:opacity-80 transition`}
-      >
-        <span className="font-medium">경로 상세보기</span>
-        {expanded ? <ChevronUp className="w-5 h-5" /> : <ChevronDown className="w-5 h-5" />}
-      </button>
-
       {expanded && (
         <div className="space-y-3">
-          {route.legs.map((leg, idx) => (
-            <div key={idx} className={`${isBest ? 'bg-white bg-opacity-10' : 'bg-gray-50'} rounded-lg p-4`}>
-              <div className="flex items-start">
-                <div className="mr-3 mt-1">
-                  {leg.type === 'taxi' && <Car className="w-5 h-5" />}
-                  {leg.type === 'transit' && <Bus className="w-5 h-5" />}
-                  {leg.type === 'walk' && <Footprints className="w-5 h-5" />}
-                </div>
-                <div className="flex-1">
-                  <div className="flex items-center justify-between mb-2">
-                    <p className="font-semibold">{leg.from} → {leg.to}</p>
-                    <p className="text-sm opacity-80">{leg.durationMin}분</p>
-                  </div>
-                  {leg.arrivalTime && (
-                    <p className="text-xs opacity-70 mb-2">도착: {formatTime(leg.arrivalTime)}</p>
-                  )}
+          {route.legs.map((leg, idx) => {
+            const isTaxi = leg.type === "taxi";
+            const isTransit = leg.type === "transit";
+            const isWalk = leg.type === "walk";
 
-                  {leg.type === 'transit' && leg.details && 'steps' in leg.details && leg.details.steps && (
-                    <div className="space-y-2 mt-3">
-                      {leg.details.steps.map((step, stepIdx) => (
-                        <div key={stepIdx} className={`${isBest ? 'bg-white bg-opacity-10' : 'bg-white'} rounded p-2 text-sm`}>
-                          <div className="flex items-center justify-between">
-                            <div className="flex items-center space-x-2">
-                              {step.mode === 'SUBWAY' && <Train className="w-4 h-4" />}
-                              {step.mode === 'BUS' && <Bus className="w-4 h-4" />}
-                              {step.mode === 'WALK' && <Footprints className="w-4 h-4" />}
-                              <span className="font-medium">
-                                {step.mode === 'SUBWAY' && '지하철'}
-                                {step.mode === 'BUS' && '버스'}
-                                {step.mode === 'WALK' && '도보'}
-                              </span>
-                              {step.route && (
-                                <span
-                                  className="px-2 py-0.5 rounded text-xs font-bold"
-                                  style={{ backgroundColor: step.routeColor || '#666', color: '#fff' }}
-                                >
-                                  {step.route}
-                                </span>
-                              )}
-                            </div>
-                            <span className="text-xs opacity-70">{Math.ceil(step.duration / 60)}분</span>
-                          </div>
-                          {step.from && step.to && (
-                            <p className="text-xs opacity-70 mt-1">
-                              {step.from} → {step.to}
-                              {step.stationCount > 0 && ` (${step.stationCount}개 정거장)`}
+            return (
+              <div
+                key={idx}
+                className={`${
+                  isBest ? "bg-white/10" : "bg-gray-50"
+                } rounded-xl p-4`}
+              >
+                <div className="flex items-start">
+                  <div className="mr-3 mt-1">
+                    {isTaxi && <Car className="w-5 h-5" />}
+                    {isTransit && <Bus className="w-5 h-5" />}
+                    {isWalk && <Footprints className="w-5 h-5" />}
+                  </div>
+
+                  <div className="flex-1">
+                    <div className="flex items-center justify-between mb-2">
+                      <p
+                        className={`font-semibold ${
+                          isBest ? "text-white" : "text-gray-900"
+                        }`}
+                      >
+                        {leg.from} → {leg.to}
+                      </p>
+                      <p
+                        className={`text-sm ${
+                          isBest ? "text-white/80" : "text-gray-600"
+                        }`}
+                      >
+                        {leg.durationMin}분
+                      </p>
+                    </div>
+
+                    {leg.arrivalTime && (
+                      <p
+                        className={`text-xs mb-2 ${
+                          isBest ? "text-white/70" : "text-gray-500"
+                        }`}
+                      >
+                        도착 {formatTime(leg.arrivalTime)}
+                      </p>
+                    )}
+
+                    {isTaxi && leg.details && "taxiFare" in leg.details && (
+                      <div
+                        className={`text-sm mt-2 space-y-1 ${
+                          isBest ? "text-white/85" : "text-gray-700"
+                        }`}
+                      >
+                        {typeof leg.details.taxiFare === "number" && (
+                          <p>
+                            택시 요금 {leg.details.taxiFare.toLocaleString()}원
+                          </p>
+                        )}
+                        {typeof leg.details.tollFare === "number" &&
+                          leg.details.tollFare > 0 && (
+                            <p>
+                              통행료 {leg.details.tollFare.toLocaleString()}원
                             </p>
                           )}
-                        </div>
-                      ))}
-                    </div>
-                  )}
+                      </div>
+                    )}
 
-                  {leg.type === 'taxi' && leg.details && 'taxiFare' in leg.details && (
-                    <div className="text-sm opacity-80 mt-2">
-                      <p>택시 요금: {leg.details.taxiFare?.toLocaleString()}원</p>
-                      {typeof leg.details.tollFare === 'number' && leg.details.tollFare > 0 && (
-                        <p>통행료: {leg.details.tollFare.toLocaleString()}원</p>
+                    {isTransit &&
+                      leg.details &&
+                      "steps" in leg.details &&
+                      leg.details.steps && (
+                        <>
+                          <div
+                            className={`mt-2 text-sm ${
+                              isBest ? "text-white/85" : "text-gray-700"
+                            }`}
+                          >
+                            {"totalWalkM" in leg.details &&
+                              typeof leg.details.totalWalkM === "number" && (
+                                <span className="mr-3">
+                                  도보{" "}
+                                  {Math.ceil(
+                                    (leg.details.totalWalkM ?? 0) / 70
+                                  )}
+                                  분
+                                </span>
+                              )}
+                            {"busCount" in leg.details &&
+                              typeof leg.details.busCount === "number" && (
+                                <span className="mr-3">
+                                  버스 {leg.details.busCount}회
+                                </span>
+                              )}
+                            {"subwayCount" in leg.details &&
+                              typeof leg.details.subwayCount === "number" && (
+                                <span>지하철 {leg.details.subwayCount}회</span>
+                              )}
+                          </div>
+
+                          <div className="space-y-2 mt-3">
+                            {leg.details.steps
+                              .filter((s) => !isMeaninglessWalkStep(s))
+                              .map((step, stepIdx) => {
+                                const durMin = Math.max(
+                                  1,
+                                  Math.ceil((step.duration ?? 0) / 60)
+                                );
+
+                                const bg =
+                                  normalizeHex(step.routeColor) ?? "#2563EB";
+                                const fg = pickTextColorFromHex(bg);
+
+                                return (
+                                  <div
+                                    key={stepIdx}
+                                    className={`rounded-lg p-3 text-sm ${
+                                      isBest
+                                        ? "bg-white/10"
+                                        : "bg-white border border-gray-100"
+                                    }`}
+                                  >
+                                    <div className="flex items-center justify-between">
+                                      <div className="flex items-center gap-2 min-w-0">
+                                        {step.mode === "SUBWAY" && (
+                                          <Train className="w-4 h-4" />
+                                        )}
+                                        {step.mode === "BUS" && (
+                                          <Bus className="w-4 h-4" />
+                                        )}
+                                        {step.mode === "WALK" && (
+                                          <Footprints className="w-4 h-4" />
+                                        )}
+
+                                        <span
+                                          className={`font-medium shrink-0 ${
+                                            isBest
+                                              ? "text-white"
+                                              : "text-gray-900"
+                                          }`}
+                                        >
+                                          {step.mode === "SUBWAY"
+                                            ? "지하철"
+                                            : step.mode === "BUS"
+                                            ? "버스"
+                                            : "도보"}
+                                        </span>
+
+                                        {step.route && (
+                                          <span
+                                            className="px-2 py-0.5 rounded text-xs font-bold shrink-0"
+                                            style={{
+                                              backgroundColor: bg,
+                                              color: fg,
+                                            }}
+                                          >
+                                            {step.route}
+                                          </span>
+                                        )}
+                                      </div>
+
+                                      <span
+                                        className={`text-xs shrink-0 ${
+                                          isBest
+                                            ? "text-white/70"
+                                            : "text-gray-500"
+                                        }`}
+                                      >
+                                        {durMin}분
+                                      </span>
+                                    </div>
+
+                                    {step.from && step.to && (
+                                      <p
+                                        className={`text-xs mt-1 ${
+                                          isBest
+                                            ? "text-white/70"
+                                            : "text-gray-500"
+                                        }`}
+                                      >
+                                        {step.from} → {step.to}
+                                        {step.stationCount > 0 &&
+                                          ` (${step.stationCount}개 정거장)`}
+                                      </p>
+                                    )}
+                                  </div>
+                                );
+                              })}
+                          </div>
+                        </>
                       )}
-                    </div>
-                  )}
 
-                  {leg.type !== 'taxi' && leg.costKrw > 0 && (
-                    <p className="text-sm opacity-80 mt-2">요금: {leg.costKrw.toLocaleString()}원</p>
-                  )}
+                    {!isTaxi && leg.costKrw > 0 && (
+                      <p
+                        className={`text-sm mt-2 ${
+                          isBest ? "text-white/85" : "text-gray-700"
+                        }`}
+                      >
+                        요금 {leg.costKrw.toLocaleString()}원
+                      </p>
+                    )}
+                  </div>
                 </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
     </div>
@@ -170,41 +431,51 @@ function RouteCard({ route, isBest = false }: { route: RouteCandidate; isBest?: 
 }
 
 export default function RouteResults({ response }: Props) {
-  const { routes, noFeasibleRoute, minPossibleTimeMin, minPossibleWalkMin, constraints } = response;
+  const {
+    routes,
+    noFeasibleRoute,
+    minPossibleTimeMin,
+    minPossibleWalkMin,
+    constraints,
+  } = response;
 
   if (routes.length === 0) return null;
 
   if (noFeasibleRoute) {
     return (
       <div className="space-y-6">
-        <div className="bg-amber-50 border border-amber-200 rounded-xl p-6">
+        <div className="bg-amber-50 border border-amber-200 rounded-2xl p-6">
           <div className="flex items-start space-x-4">
             <div className="flex-shrink-0">
               <AlertTriangle className="w-8 h-8 text-amber-500" />
             </div>
             <div className="flex-1">
               <h2 className="text-xl font-bold text-amber-800 mb-2">
-                조건에 맞는 경로를 찾을 수 없습니다
+                조건에 맞는 경로가 없습니다
               </h2>
               <p className="text-amber-700 mb-4">
-                요청하신 조건(최대 {constraints.maxTimeMin}분, 도보 {constraints.maxWalkMin}분 이내)을
-                만족하는 경로가 없습니다.
+                최대 {constraints.maxTimeMin}분 / 도보 {constraints.maxWalkMin}
+                분 이내 조건을 만족하는 경로를 찾지 못했습니다.
               </p>
 
-              <div className="bg-white rounded-lg p-4 border border-amber-200">
-                <p className="text-gray-700 font-medium mb-2">예상 최소 소요 시간:</p>
+              <div className="bg-white rounded-xl p-4 border border-amber-200">
+                <p className="text-gray-700 font-medium mb-2">예상 최소 기준</p>
                 <div className="flex items-center space-x-6">
                   {minPossibleTimeMin !== null && (
                     <div className="flex items-center text-amber-800">
                       <Clock className="w-5 h-5 mr-2" />
-                      <span className="text-2xl font-bold">{minPossibleTimeMin}분</span>
-                      <span className="ml-2 text-sm text-gray-500">이상 소요</span>
+                      <span className="text-2xl font-bold">
+                        {minPossibleTimeMin}분
+                      </span>
+                      <span className="ml-2 text-sm text-gray-500">이상</span>
                     </div>
                   )}
                   {minPossibleWalkMin !== null && minPossibleWalkMin > 0 && (
                     <div className="flex items-center text-amber-800">
                       <Activity className="w-5 h-5 mr-2" />
-                      <span className="text-lg font-semibold">{minPossibleWalkMin}분</span>
+                      <span className="text-lg font-semibold">
+                        {minPossibleWalkMin}분
+                      </span>
                       <span className="ml-2 text-sm text-gray-500">도보</span>
                     </div>
                   )}
@@ -216,7 +487,7 @@ export default function RouteResults({ response }: Props) {
 
         {routes.length > 0 && (
           <div className="space-y-4">
-            <h3 className="text-lg font-semibold text-gray-700">참고 경로 (조건 초과)</h3>
+            <h3 className="text-lg font-semibold text-gray-700">참고 경로</h3>
             {routes.map((route, idx) => (
               <RouteCard key={idx} route={route} />
             ))}
@@ -232,14 +503,14 @@ export default function RouteResults({ response }: Props) {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h2 className="text-2xl font-bold text-gray-900">추천 경로</h2>
-        <span className="text-sm text-gray-500">{routes.length}개 경로 발견</span>
+        <span className="text-sm text-gray-500">{routes.length}개</span>
       </div>
 
       <RouteCard route={bestRoute} isBest={true} />
 
       {routes.length > 1 && (
         <div className="space-y-4">
-          <h3 className="text-xl font-bold text-gray-900">대안 경로</h3>
+          <h3 className="text-xl font-bold text-gray-900">대안</h3>
           {routes.slice(1).map((route, idx) => (
             <RouteCard key={idx} route={route} />
           ))}

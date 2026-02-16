@@ -1,6 +1,5 @@
-import { useState, useRef, useEffect, useCallback } from 'react';
-import { Clock, MapPin, Timer, TrendingUp, Search, X } from 'lucide-react';
-import { SearchRequest, RouteResponse, Location } from '../types';
+import { useState, useRef, useEffect, useCallback } from "react";
+import { SearchRequest, RouteResponse, Location } from "../types";
 
 interface Props {
   onSearch: (response: RouteResponse) => void;
@@ -25,142 +24,166 @@ interface KakaoDocument {
 function getCurrentDateTimeLocal(): string {
   const now = new Date();
   const year = now.getFullYear();
-  const month = String(now.getMonth() + 1).padStart(2, '0');
-  const day = String(now.getDate()).padStart(2, '0');
-  const hours = String(now.getHours()).padStart(2, '0');
-  const minutes = String(now.getMinutes()).padStart(2, '0');
+  const month = String(now.getMonth() + 1).padStart(2, "0");
+  const day = String(now.getDate()).padStart(2, "0");
+  const hours = String(now.getHours()).padStart(2, "0");
+  const minutes = String(now.getMinutes()).padStart(2, "0");
   return `${year}-${month}-${day}T${hours}:${minutes}`;
 }
 
-export default function RouteSearchForm({ onSearch, onError, onLoadingChange }: Props) {
+function FieldLabel({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="text-[12px] font-medium text-gray-600 mb-1">{children}</div>
+  );
+}
+
+function Row({ children }: { children: React.ReactNode }) {
+  return <div className="px-4 py-3">{children}</div>;
+}
+
+export default function RouteSearchForm({
+  onSearch,
+  onError,
+  onLoadingChange,
+}: Props) {
   const [origin, setOrigin] = useState<Location | null>(null);
   const [destination, setDestination] = useState<Location | null>(null);
-  const [originQuery, setOriginQuery] = useState('');
-  const [destinationQuery, setDestinationQuery] = useState('');
+
+  const [originQuery, setOriginQuery] = useState("");
+  const [destinationQuery, setDestinationQuery] = useState("");
+
   const [originResults, setOriginResults] = useState<PlaceResult[]>([]);
-  const [destinationResults, setDestinationResults] = useState<PlaceResult[]>([]);
+  const [destinationResults, setDestinationResults] = useState<PlaceResult[]>(
+    []
+  );
+
   const [showOriginResults, setShowOriginResults] = useState(false);
   const [showDestinationResults, setShowDestinationResults] = useState(false);
+
   const [maxTimeMin, setMaxTimeMin] = useState(60);
   const [maxWalkMin, setMaxWalkMin] = useState(15);
   const [departureTime, setDepartureTime] = useState(getCurrentDateTimeLocal());
+
   const hasKakaoKey = !!import.meta.env.VITE_KAKAO_REST_API_KEY;
 
-  const originInputRef = useRef<HTMLInputElement>(null);
-  const destinationInputRef = useRef<HTMLInputElement>(null);
+  const originWrapRef = useRef<HTMLDivElement>(null);
+  const destinationWrapRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
-      if (originInputRef.current && !originInputRef.current.contains(e.target as Node)) {
+      const t = e.target as Node;
+      if (originWrapRef.current && !originWrapRef.current.contains(t))
         setShowOriginResults(false);
-      }
-      if (destinationInputRef.current && !destinationInputRef.current.contains(e.target as Node)) {
+      if (destinationWrapRef.current && !destinationWrapRef.current.contains(t))
         setShowDestinationResults(false);
-      }
     };
-
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  const searchPlaces = useCallback(async (query: string, isOrigin: boolean) => {
-    if (query.length < 1) {
-      if (isOrigin) setOriginResults([]);
-      else setDestinationResults([]);
-      return;
-    }
+  const searchPlaces = useCallback(
+    async (query: string, isOrigin: boolean) => {
+      if (!hasKakaoKey) return;
 
-    if (!hasKakaoKey) {
-      return;
-    }
+      const q = query.trim();
+      if (q.length < 2) {
+        if (isOrigin) setOriginResults([]);
+        else setDestinationResults([]);
+        return;
+      }
 
-    if (query.length < 2) return;
+      try {
+        const response = await fetch(
+          `https://dapi.kakao.com/v2/local/search/keyword.json?query=${encodeURIComponent(
+            q
+          )}`,
+          {
+            headers: {
+              Authorization: `KakaoAK ${
+                import.meta.env.VITE_KAKAO_REST_API_KEY
+              }`,
+            },
+          }
+        );
 
-    try {
-      const response = await fetch(
-        `https://dapi.kakao.com/v2/local/search/keyword.json?query=${encodeURIComponent(query)}`,
-        {
-          headers: {
-            Authorization: `KakaoAK ${import.meta.env.VITE_KAKAO_REST_API_KEY}`,
-          },
+        if (!response.ok) throw new Error(`API Error: ${response.status}`);
+
+        const data = await response.json();
+        const results: PlaceResult[] = (data.documents || []).map(
+          (doc: KakaoDocument) => ({
+            name: doc.place_name,
+            address: doc.address_name,
+            lat: parseFloat(doc.y),
+            lng: parseFloat(doc.x),
+          })
+        );
+
+        if (isOrigin) {
+          setOriginResults(results);
+          if (!origin) setShowOriginResults(true);
+        } else {
+          setDestinationResults(results);
+          if (!destination) setShowDestinationResults(true);
         }
-      );
+      } catch (err) {
+        // 유저에게 API 관련 디테일 노출 X (콘솔로만)
+        console.error("Kakao place search failed:", err);
 
-      if (!response.ok) {
-        throw new Error(`API Error: ${response.status}`);
-      }
+        // 유저 메시지는 일반화
+        onError("장소 검색에 실패했습니다. 잠시 후 다시 시도해주세요.");
 
-      const data = await response.json();
-      const results: PlaceResult[] = data.documents.map((doc: KakaoDocument) => ({
-        name: doc.place_name,
-        address: doc.address_name,
-        lat: parseFloat(doc.y),
-        lng: parseFloat(doc.x),
-      }));
-
-      if (isOrigin) {
-        setOriginResults(results);
-        setShowOriginResults(true);
-      } else {
-        setDestinationResults(results);
-        setShowDestinationResults(true);
+        if (isOrigin) setOriginResults([]);
+        else setDestinationResults([]);
       }
-    } catch (err) {
-      console.error('Error searching places:', err);
-      if (err instanceof Error && err.message.includes('403')) {
-        onError('Kakao API 키가 유효하지 않습니다. Kakao Developers에서 다음을 확인하세요:\n1. REST API 키가 정확한지\n2. 앱이 활성화되어 있는지\n3. 웹 플랫폼이 등록되어 있는지 (localhost:5173)');
-      }
-      if (isOrigin) {
-        setOriginResults([]);
-      } else {
-        setDestinationResults([]);
-      }
-    }
-  }, [hasKakaoKey, onError]);
+    },
+    [hasKakaoKey, onError, origin, destination]
+  );
 
   useEffect(() => {
-    const timer = setTimeout(() => {
-      searchPlaces(originQuery, true);
-    }, 300);
-    return () => clearTimeout(timer);
-  }, [originQuery, searchPlaces]);
+    if (origin) return;
+    const t = setTimeout(() => searchPlaces(originQuery, true), 250);
+    return () => clearTimeout(t);
+  }, [originQuery, origin, searchPlaces]);
 
   useEffect(() => {
-    const timer = setTimeout(() => {
-      searchPlaces(destinationQuery, false);
-    }, 300);
-    return () => clearTimeout(timer);
-  }, [destinationQuery, searchPlaces]);
+    if (destination) return;
+    const t = setTimeout(() => searchPlaces(destinationQuery, false), 250);
+    return () => clearTimeout(t);
+  }, [destinationQuery, destination, searchPlaces]);
 
   const selectOrigin = (place: PlaceResult) => {
     setOrigin({ name: place.name, lat: place.lat, lng: place.lng });
     setOriginQuery(place.name);
+    setOriginResults([]);
     setShowOriginResults(false);
   };
 
   const selectDestination = (place: PlaceResult) => {
     setDestination({ name: place.name, lat: place.lat, lng: place.lng });
     setDestinationQuery(place.name);
+    setDestinationResults([]);
     setShowDestinationResults(false);
   };
 
-  const clearOrigin = () => {
+  const resetOriginForReinput = () => {
     setOrigin(null);
-    setOriginQuery('');
+    setOriginQuery("");
     setOriginResults([]);
+    setShowOriginResults(true);
   };
 
-  const clearDestination = () => {
+  const resetDestinationForReinput = () => {
     setDestination(null);
-    setDestinationQuery('');
+    setDestinationQuery("");
     setDestinationResults([]);
+    setShowDestinationResults(true);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
     if (!origin || !destination) {
-      onError('출발지와 목적지를 모두 선택해주세요');
+      onError("출발지와 목적지를 모두 선택해주세요.");
       return;
     }
 
@@ -181,189 +204,184 @@ export default function RouteSearchForm({ onSearch, onError, onLoadingChange }: 
         departureTime: departureISO,
       };
 
-      const apiUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/find-optimal-route`;
-      const headers = {
-        'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
-        'Content-Type': 'application/json',
-      };
+      const apiUrl = `${
+        import.meta.env.VITE_SUPABASE_URL
+      }/functions/v1/find-optimal-route`;
 
       const response = await fetch(apiUrl, {
-        method: 'POST',
-        headers,
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
         body: JSON.stringify(request),
       });
 
       const data = await response.json();
 
-      if (data.success) {
-        onSearch(data as RouteResponse);
-      } else {
-        onError(data.error || '경로를 찾을 수 없습니다');
-      }
+      if (data.success) onSearch(data as RouteResponse);
+      else onError(data.error || "경로를 찾을 수 없습니다.");
     } catch (err) {
-      onError(err instanceof Error ? err.message : '알 수 없는 오류가 발생했습니다');
+      onError(
+        err instanceof Error ? err.message : "알 수 없는 오류가 발생했습니다."
+      );
     } finally {
       onLoadingChange(false);
     }
   };
 
+  const canSubmit = !!origin && !!destination;
+
   return (
-    <div className="bg-white rounded-xl shadow-lg p-6 border border-gray-100">
-      <h2 className="text-2xl font-bold text-gray-900 mb-6">경로 검색</h2>
-      {!hasKakaoKey && (
-        <div className="bg-red-50 border border-red-200 text-red-800 px-4 py-3 rounded-lg mb-4 text-sm">
-          <p className="font-medium">API 키 미설정</p>
-          <p>.env 파일에 VITE_KAKAO_REST_API_KEY를 설정해주세요.</p>
-        </div>
-      )}
+    <div className="relative">
+      <form onSubmit={handleSubmit} className="pb-16">
+        <Row>
+          <FieldLabel>출발지</FieldLabel>
+          <div ref={originWrapRef} className="relative">
+            <div className="flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-3 py-3 focus-within:border-blue-500">
+              <input
+                value={originQuery}
+                onChange={(e) => setOriginQuery(e.target.value)}
+                onFocus={() => {
+                  if (origin) resetOriginForReinput();
+                  else if (originResults.length > 0) setShowOriginResults(true);
+                }}
+                onMouseDown={() => {
+                  if (origin) resetOriginForReinput();
+                }}
+                placeholder="출발지를 검색하세요"
+                disabled={!hasKakaoKey}
+                className="w-full text-[15px] text-gray-900 placeholder:text-gray-400 outline-none disabled:bg-transparent"
+              />
+            </div>
 
-      <form onSubmit={handleSubmit} className="space-y-6">
-        <div className="relative" ref={originInputRef}>
-          <label className="flex items-center text-sm font-medium text-gray-700 mb-2">
-            <MapPin className="w-4 h-4 mr-2 text-blue-600" />
-            출발지
-          </label>
-          <div className="relative">
-            <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-            <input
-              type="text"
-              value={originQuery}
-              onChange={(e) => setOriginQuery(e.target.value)}
-              onFocus={() => originResults.length > 0 && setShowOriginResults(true)}
-              placeholder={hasKakaoKey ? "출발지를 검색하세요" : "API 키를 설정해주세요"}
-              disabled={!hasKakaoKey}
-              className="w-full pl-12 pr-12 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition disabled:bg-gray-100 disabled:cursor-not-allowed"
-            />
-            {origin && (
-              <button
-                type="button"
-                onClick={clearOrigin}
-                className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
-              >
-                <X className="w-5 h-5" />
-              </button>
+            {showOriginResults && !origin && originResults.length > 0 && (
+              <div className="absolute z-20 mt-2 w-full overflow-hidden rounded-xl border border-gray-200 bg-white shadow-[0_10px_24px_rgba(0,0,0,0.10)]">
+                {originResults.slice(0, 8).map((r, idx) => (
+                  <button
+                    key={idx}
+                    type="button"
+                    onClick={() => selectOrigin(r)}
+                    className="w-full px-4 py-3 text-left hover:bg-gray-50 border-b border-gray-100 last:border-b-0"
+                  >
+                    <div className="text-[14px] font-medium text-gray-900">
+                      {r.name}
+                    </div>
+                    <div className="mt-0.5 text-[12px] text-gray-500">
+                      {r.address}
+                    </div>
+                  </button>
+                ))}
+              </div>
             )}
           </div>
-          {showOriginResults && originResults.length > 0 && (
-            <div className="absolute z-10 w-full mt-2 bg-white border border-gray-200 rounded-lg shadow-lg max-h-64 overflow-y-auto">
-              {originResults.map((result, idx) => (
-                <button
-                  key={idx}
-                  type="button"
-                  onClick={() => selectOrigin(result)}
-                  className="w-full px-4 py-3 text-left hover:bg-gray-50 transition border-b border-gray-100 last:border-b-0"
-                >
-                  <p className="font-medium text-gray-900">{result.name}</p>
-                  <p className="text-sm text-gray-500">{result.address}</p>
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
+        </Row>
 
-        <div className="relative" ref={destinationInputRef}>
-          <label className="flex items-center text-sm font-medium text-gray-700 mb-2">
-            <TrendingUp className="w-4 h-4 mr-2 text-green-600" />
-            목적지
-          </label>
-          <div className="relative">
-            <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-            <input
-              type="text"
-              value={destinationQuery}
-              onChange={(e) => setDestinationQuery(e.target.value)}
-              onFocus={() => destinationResults.length > 0 && setShowDestinationResults(true)}
-              placeholder={hasKakaoKey ? "목적지를 검색하세요" : "API 키를 설정해주세요"}
-              disabled={!hasKakaoKey}
-              className="w-full pl-12 pr-12 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent transition disabled:bg-gray-100 disabled:cursor-not-allowed"
-            />
-            {destination && (
-              <button
-                type="button"
-                onClick={clearDestination}
-                className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            )}
+        <div className="h-px bg-gray-100" />
+
+        <Row>
+          <FieldLabel>목적지</FieldLabel>
+          <div ref={destinationWrapRef} className="relative">
+            <div className="flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-3 py-3 focus-within:border-blue-500">
+              <input
+                value={destinationQuery}
+                onChange={(e) => setDestinationQuery(e.target.value)}
+                onFocus={() => {
+                  if (destination) resetDestinationForReinput();
+                  else if (destinationResults.length > 0)
+                    setShowDestinationResults(true);
+                }}
+                onMouseDown={() => {
+                  if (destination) resetDestinationForReinput();
+                }}
+                placeholder="목적지를 검색하세요"
+                disabled={!hasKakaoKey}
+                className="w-full text-[15px] text-gray-900 placeholder:text-gray-400 outline-none disabled:bg-transparent"
+              />
+            </div>
+
+            {showDestinationResults &&
+              !destination &&
+              destinationResults.length > 0 && (
+                <div className="absolute z-20 mt-2 w-full overflow-hidden rounded-xl border border-gray-200 bg-white shadow-[0_10px_24px_rgba(0,0,0,0.10)]">
+                  {destinationResults.slice(0, 8).map((r, idx) => (
+                    <button
+                      key={idx}
+                      type="button"
+                      onClick={() => selectDestination(r)}
+                      className="w-full px-4 py-3 text-left hover:bg-gray-50 border-b border-gray-100 last:border-b-0"
+                    >
+                      <div className="text-[14px] font-medium text-gray-900">
+                        {r.name}
+                      </div>
+                      <div className="mt-0.5 text-[12px] text-gray-500">
+                        {r.address}
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              )}
           </div>
-          {showDestinationResults && destinationResults.length > 0 && (
-            <div className="absolute z-10 w-full mt-2 bg-white border border-gray-200 rounded-lg shadow-lg max-h-64 overflow-y-auto">
-              {destinationResults.map((result, idx) => (
-                <button
-                  key={idx}
-                  type="button"
-                  onClick={() => selectDestination(result)}
-                  className="w-full px-4 py-3 text-left hover:bg-gray-50 transition border-b border-gray-100 last:border-b-0"
-                >
-                  <p className="font-medium text-gray-900">{result.name}</p>
-                  <p className="text-sm text-gray-500">{result.address}</p>
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
+        </Row>
 
-        <div>
-          <label className="flex items-center text-sm font-medium text-gray-700 mb-2">
-            <Clock className="w-4 h-4 mr-2 text-purple-600" />
-            출발 시간
-          </label>
+        <div className="h-px bg-gray-100" />
+
+        <Row>
+          <FieldLabel>출발 시간</FieldLabel>
           <input
             type="datetime-local"
             value={departureTime}
             onChange={(e) => setDepartureTime(e.target.value)}
-            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent transition"
+            className="w-full rounded-xl border border-gray-200 bg-white px-3 py-3 text-[14px] text-gray-900 focus:border-blue-500 outline-none"
           />
-          <p className="text-xs text-gray-500 mt-1">현재 시간이 기본값으로 설정되어 있습니다</p>
-        </div>
+          <div className="mt-2 text-[12px] text-gray-500">
+            현재 시간이 기본값으로 설정됩니다.
+          </div>
+        </Row>
 
-        <div className="grid grid-cols-2 gap-4">
-          <div>
-            <label className="flex items-center text-sm font-medium text-gray-700 mb-2">
-              <Clock className="w-4 h-4 mr-2 text-orange-600" />
-              최대 소요시간
-            </label>
-            <div className="relative">
+        <div className="h-px bg-gray-100" />
+
+        <Row>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <FieldLabel>희망 소요시간(분)</FieldLabel>
               <input
                 type="number"
-                min="10"
-                max="180"
+                min={10}
+                max={180}
                 value={maxTimeMin}
                 onChange={(e) => setMaxTimeMin(Number(e.target.value))}
-                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent transition"
+                className="w-full rounded-xl border border-gray-200 bg-white px-3 py-3 text-[14px] text-gray-900 focus:border-blue-500 outline-none"
               />
-              <span className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-500 text-sm">분</span>
             </div>
-          </div>
-
-          <div>
-            <label className="flex items-center text-sm font-medium text-gray-700 mb-2">
-              <Timer className="w-4 h-4 mr-2 text-gray-600" />
-              최대 도보시간
-            </label>
-            <div className="relative">
+            <div>
+              <FieldLabel>최대 도보(분)</FieldLabel>
               <input
                 type="number"
-                min="5"
-                max="60"
+                min={5}
+                max={60}
                 value={maxWalkMin}
                 onChange={(e) => setMaxWalkMin(Number(e.target.value))}
-                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-500 focus:border-transparent transition"
+                className="w-full rounded-xl border border-gray-200 bg-white px-3 py-3 text-[14px] text-gray-900 focus:border-blue-500 outline-none"
               />
-              <span className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-500 text-sm">분</span>
             </div>
           </div>
-        </div>
-
-        <button
-          type="submit"
-          disabled={!origin || !destination}
-          className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-4 px-6 rounded-lg transition shadow-md hover:shadow-lg disabled:bg-gray-300 disabled:cursor-not-allowed disabled:shadow-none"
-        >
-          최적 경로 찾기
-        </button>
+        </Row>
       </form>
+
+      <div className="absolute bottom-0 left-0 right-0 p-3">
+        <button
+          type="button"
+          onClick={(e) => {
+            const form = e.currentTarget.closest("div")
+              ?.previousSibling as HTMLFormElement | null;
+            form?.requestSubmit();
+          }}
+          disabled={!canSubmit || !hasKakaoKey}
+          className="w-full rounded-2xl bg-blue-600 py-4 text-[15px] font-semibold text-white shadow-[0_8px_20px_rgba(37,99,235,0.25)] disabled:bg-gray-300 disabled:shadow-none"
+        >
+          경로 검색
+        </button>
+      </div>
     </div>
   );
 }
