@@ -1,4 +1,8 @@
 import { useState, useRef, useEffect, useCallback } from "react";
+import TimePicker from "react-time-picker";
+import "react-time-picker/dist/TimePicker.css";
+import "react-clock/dist/Clock.css";
+
 import { SearchRequest, RouteResponse, Location } from "../types";
 
 interface Props {
@@ -21,19 +25,39 @@ interface KakaoDocument {
   x: string;
 }
 
-function getCurrentDateTimeLocal(): string {
+function getCurrentTimeHHmm(): string {
   const now = new Date();
-  const year = now.getFullYear();
-  const month = String(now.getMonth() + 1).padStart(2, "0");
-  const day = String(now.getDate()).padStart(2, "0");
-  const hours = String(now.getHours()).padStart(2, "0");
-  const minutes = String(now.getMinutes()).padStart(2, "0");
-  return `${year}-${month}-${day}T${hours}:${minutes}`;
+  const hh = String(now.getHours()).padStart(2, "0");
+  const mm = String(now.getMinutes()).padStart(2, "0");
+  return `${hh}:${mm}`;
+}
+
+function buildTodayDepartureISO(timeHHmm: string): string {
+  const now = new Date();
+  const [hhRaw, mmRaw] = timeHHmm.split(":");
+  const hh = Number.isFinite(parseInt(hhRaw, 10))
+    ? parseInt(hhRaw, 10)
+    : now.getHours();
+  const mm = Number.isFinite(parseInt(mmRaw, 10))
+    ? parseInt(mmRaw, 10)
+    : now.getMinutes();
+
+  const d = new Date(
+    now.getFullYear(),
+    now.getMonth(),
+    now.getDate(),
+    hh,
+    mm,
+    0,
+    0
+  );
+
+  return d.toISOString();
 }
 
 function FieldLabel({ children }: { children: React.ReactNode }) {
   return (
-    <div className="text-[12px] font-medium text-gray-600 mb-1">{children}</div>
+    <div className="mb-1 text-[12px] font-medium text-gray-600">{children}</div>
   );
 }
 
@@ -60,11 +84,13 @@ export default function RouteSearchForm({
   const [showOriginResults, setShowOriginResults] = useState(false);
   const [showDestinationResults, setShowDestinationResults] = useState(false);
 
-  // ✅ iOS 줌/입력 중 "040" 문제까지 같이 해결하려면: number는 string state로 관리
   const [maxTimeMinInput, setMaxTimeMinInput] = useState("60");
   const [maxWalkMinInput, setMaxWalkMinInput] = useState("15");
 
-  const [departureTime, setDepartureTime] = useState(getCurrentDateTimeLocal());
+  // ✅ 내부 값은 24시간(HH:mm)로 유지(서버/ISO 생성 안전)
+  const [departureTimeHHmm, setDepartureTimeHHmm] = useState(
+    getCurrentTimeHHmm()
+  );
 
   const hasKakaoKey = !!import.meta.env.VITE_KAKAO_REST_API_KEY;
 
@@ -128,12 +154,8 @@ export default function RouteSearchForm({
           if (!destination) setShowDestinationResults(true);
         }
       } catch (err) {
-        // 유저에게 API 관련 디테일 노출 X (콘솔로만)
         console.error("Kakao place search failed:", err);
-
-        // 유저 메시지는 일반화
         onError("장소 검색에 실패했습니다. 잠시 후 다시 시도해주세요.");
-
         if (isOrigin) setOriginResults([]);
         else setDestinationResults([]);
       }
@@ -192,11 +214,8 @@ export default function RouteSearchForm({
     onLoadingChange(true);
 
     try {
-      const departureISO = departureTime
-        ? new Date(departureTime).toISOString()
-        : new Date().toISOString();
+      const departureISO = buildTodayDepartureISO(departureTimeHHmm);
 
-      // ✅ submit 시점에만 숫자로 변환 (빈 문자열이면 기본값)
       const maxTimeMin = Number.isFinite(parseInt(maxTimeMinInput, 10))
         ? parseInt(maxTimeMinInput, 10)
         : 60;
@@ -221,9 +240,7 @@ export default function RouteSearchForm({
 
       const response = await fetch(apiUrl, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify(request),
       });
 
@@ -244,6 +261,51 @@ export default function RouteSearchForm({
 
   return (
     <div className="relative">
+      <style>
+        {`
+          .rtp.react-time-picker { width: 100%; }
+          .rtp .react-time-picker__wrapper {
+            border: 0 !important;
+            background: transparent !important;
+            padding: 0 !important;
+            min-height: 0 !important;
+            box-shadow: none !important;
+          }
+          .rtp .react-time-picker__inputGroup {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            padding: 0 !important;
+            background: transparent !important;
+          }
+          .rtp .react-time-picker__inputGroup__input {
+            border: 0 !important;
+            background: transparent !important;
+            box-shadow: none !important;
+            outline: none !important;
+            color: #111827;
+            font-size: 14px;
+            line-height: 20px;
+            padding: 0 !important;
+            min-width: 2ch;
+          }
+          .rtp .react-time-picker__inputGroup__divider { color: #9ca3af; }
+          .rtp .react-time-picker__inputGroup__amPm {
+            border: 0 !important;
+            background: transparent !important;
+            color: #6b7280;
+            padding-left: 6px;
+          }
+          .rtp .react-time-picker__button {
+            border: 0 !important;
+            background: transparent !important;
+            padding: 0 !important;
+          }
+          .rtp .react-time-picker__button svg { stroke: #9ca3af; }
+          .rtp input { -webkit-appearance: none; appearance: none; }
+        `}
+      </style>
+
       <form onSubmit={handleSubmit} className="pb-16">
         <Row>
           <FieldLabel>출발지</FieldLabel>
@@ -272,7 +334,7 @@ export default function RouteSearchForm({
                     key={idx}
                     type="button"
                     onClick={() => selectOrigin(r)}
-                    className="w-full px-4 py-3 text-left hover:bg-gray-50 border-b border-gray-100 last:border-b-0"
+                    className="w-full border-b border-gray-100 px-4 py-3 text-left hover:bg-gray-50 last:border-b-0"
                   >
                     <div className="text-[14px] font-medium text-gray-900">
                       {r.name}
@@ -319,7 +381,7 @@ export default function RouteSearchForm({
                       key={idx}
                       type="button"
                       onClick={() => selectDestination(r)}
-                      className="w-full px-4 py-3 text-left hover:bg-gray-50 border-b border-gray-100 last:border-b-0"
+                      className="w-full border-b border-gray-100 px-4 py-3 text-left hover:bg-gray-50 last:border-b-0"
                     >
                       <div className="text-[14px] font-medium text-gray-900">
                         {r.name}
@@ -338,14 +400,20 @@ export default function RouteSearchForm({
 
         <Row>
           <FieldLabel>출발 시간</FieldLabel>
-          <input
-            type="datetime-local"
-            value={departureTime}
-            onChange={(e) => setDepartureTime(e.target.value)}
-            className="w-full rounded-xl border border-gray-200 bg-white px-3 py-3 text-[14px] text-gray-900 focus:border-blue-500 outline-none"
-          />
+          <div className="w-full rounded-xl border border-gray-200 bg-white px-3 py-3 focus-within:border-blue-500">
+            <TimePicker
+              value={departureTimeHHmm}
+              onChange={(v) => {
+                if (typeof v === "string") setDepartureTimeHHmm(v);
+              }}
+              disableClock
+              clearIcon={null}
+              format="h:mm a"
+              className="rtp w-full"
+            />
+          </div>
           <div className="mt-2 text-[12px] text-gray-500">
-            현재 시간이 기본값으로 설정됩니다.
+            날짜는 <span className="font-medium">오늘</span>만 조회 가능해요.
           </div>
         </Row>
 
@@ -363,9 +431,9 @@ export default function RouteSearchForm({
                 value={maxTimeMinInput}
                 onChange={(e) => {
                   const v = e.target.value;
-                  if (/^\d*$/.test(v)) setMaxTimeMinInput(v);
+                  if (/^\\d*$/.test(v)) setMaxTimeMinInput(v);
                 }}
-                className="w-full rounded-xl border border-gray-200 bg-white px-3 py-3 text-[16px] leading-[20px] text-gray-900 focus:border-blue-500 outline-none [-webkit-appearance:none] [appearance:textfield] h-12 box-border"
+                className="h-12 w-full box-border rounded-xl border border-gray-200 bg-white px-3 py-3 text-[16px] leading-[20px] text-gray-900 outline-none focus:border-blue-500 [-webkit-appearance:none] [appearance:textfield]"
               />
             </div>
             <div>
@@ -378,9 +446,9 @@ export default function RouteSearchForm({
                 value={maxWalkMinInput}
                 onChange={(e) => {
                   const v = e.target.value;
-                  if (/^\d*$/.test(v)) setMaxWalkMinInput(v);
+                  if (/^\\d*$/.test(v)) setMaxWalkMinInput(v);
                 }}
-                className="w-full rounded-xl border border-gray-200 bg-white px-3 py-3 text-[16px] leading-[20px] text-gray-900 focus:border-blue-500 outline-none [-webkit-appearance:none] [appearance:textfield] h-12 box-border"
+                className="h-12 w-full box-border rounded-xl border border-gray-200 bg-white px-3 py-3 text-[16px] leading-[20px] text-gray-900 outline-none focus:border-blue-500 [-webkit-appearance:none] [appearance:textfield]"
               />
             </div>
           </div>
