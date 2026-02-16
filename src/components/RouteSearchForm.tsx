@@ -2,6 +2,7 @@ import { useState, useRef, useEffect, useCallback } from "react";
 import { SearchRequest, RouteResponse, Location } from "../types";
 
 interface Props {
+  loading: boolean; // ✅ 추가: 로딩 상태를 부모에서 내려받음
   onSearch: (response: RouteResponse) => void;
   onError: (error: string) => void;
   onLoadingChange: (loading: boolean) => void;
@@ -33,20 +34,17 @@ function getCurrentDateTimeLocal(): string {
 
 function FieldLabel({ children }: { children: React.ReactNode }) {
   return (
-    <div className="mb-1 text-[12px] font-medium text-gray-600 whitespace-nowrap">
-      {children}
-    </div>
+    <div className="mb-1 text-[12px] font-medium text-gray-600">{children}</div>
   );
 }
 
 function Row({ children }: { children: React.ReactNode }) {
-  return <div className="px-4 py-3">{children}</div>;
+  // iPhone Safari에서 datetime-local이 오른쪽으로 overflow 나는 케이스 방어
+  return <div className="px-4 py-3 overflow-x-hidden">{children}</div>;
 }
 
-const INPUT_BASE =
-  "w-full rounded-xl border border-gray-200 bg-white px-3 py-3 text-[16px] text-gray-900 placeholder:text-gray-400 outline-none focus:border-blue-500 disabled:bg-transparent";
-
 export default function RouteSearchForm({
+  loading,
   onSearch,
   onError,
   onLoadingChange,
@@ -73,6 +71,9 @@ export default function RouteSearchForm({
 
   const originWrapRef = useRef<HTMLDivElement>(null);
   const destinationWrapRef = useRef<HTMLDivElement>(null);
+
+  // ✅ 중복 요청/연타 방지용 AbortController
+  const submitAbortRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
@@ -133,6 +134,7 @@ export default function RouteSearchForm({
       } catch (err) {
         console.error("Kakao place search failed:", err);
         onError("장소 검색에 실패했습니다. 잠시 후 다시 시도해주세요.");
+
         if (isOrigin) setOriginResults([]);
         else setDestinationResults([]);
       }
@@ -183,10 +185,18 @@ export default function RouteSearchForm({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
+    // ✅ 로딩 중 중복 submit 차단
+    if (loading) return;
+
     if (!origin || !destination) {
       onError("출발지와 목적지를 모두 선택해주세요.");
       return;
     }
+
+    // ✅ 직전 요청이 살아있으면 취소
+    submitAbortRef.current?.abort();
+    const controller = new AbortController();
+    submitAbortRef.current = controller;
 
     onLoadingChange(true);
 
@@ -211,8 +221,11 @@ export default function RouteSearchForm({
 
       const response = await fetch(apiUrl, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+        },
         body: JSON.stringify(request),
+        signal: controller.signal, // ✅ AbortController 적용
       });
 
       const data = await response.json();
@@ -220,37 +233,46 @@ export default function RouteSearchForm({
       if (data.success) onSearch(data as RouteResponse);
       else onError(data.error || "경로를 찾을 수 없습니다.");
     } catch (err) {
+      // ✅ 취소(Abort)는 에러 메시지 띄우지 않음
+      if (err instanceof DOMException && err.name === "AbortError") return;
+
       onError(
         err instanceof Error ? err.message : "알 수 없는 오류가 발생했습니다."
       );
     } finally {
-      onLoadingChange(false);
+      // ✅ 내가 마지막 요청일 때만 로딩 해제 (race 방지)
+      if (submitAbortRef.current === controller) {
+        onLoadingChange(false);
+        submitAbortRef.current = null;
+      }
     }
   };
 
-  const canSubmit = !!origin && !!destination;
+  // ✅ 로딩 중에는 제출 불가
+  const canSubmit = !!origin && !!destination && hasKakaoKey && !loading;
 
   return (
-    <div className="relative">
-      {/* sticky footer 높이만큼 아래 공간 확보 */}
-      <form onSubmit={handleSubmit} className="pb-12">
+    <div className="relative overflow-x-hidden">
+      <form onSubmit={handleSubmit} className="pb-16">
         <Row>
           <FieldLabel>출발지</FieldLabel>
           <div ref={originWrapRef} className="relative">
-            <input
-              value={originQuery}
-              onChange={(e) => setOriginQuery(e.target.value)}
-              onFocus={() => {
-                if (origin) resetOriginForReinput();
-                else if (originResults.length > 0) setShowOriginResults(true);
-              }}
-              onMouseDown={() => {
-                if (origin) resetOriginForReinput();
-              }}
-              placeholder="출발지를 검색하세요"
-              disabled={!hasKakaoKey}
-              className={INPUT_BASE}
-            />
+            <div className="flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-3 py-3 focus-within:border-blue-500">
+              <input
+                value={originQuery}
+                onChange={(e) => setOriginQuery(e.target.value)}
+                onFocus={() => {
+                  if (origin) resetOriginForReinput();
+                  else if (originResults.length > 0) setShowOriginResults(true);
+                }}
+                onMouseDown={() => {
+                  if (origin) resetOriginForReinput();
+                }}
+                placeholder="출발지를 검색하세요"
+                disabled={!hasKakaoKey || loading}
+                className="w-full min-w-0 text-[15px] text-gray-900 placeholder:text-gray-400 outline-none disabled:bg-transparent"
+              />
+            </div>
 
             {showOriginResults && !origin && originResults.length > 0 && (
               <div className="absolute z-20 mt-2 w-full overflow-hidden rounded-xl border border-gray-200 bg-white shadow-[0_10px_24px_rgba(0,0,0,0.10)]">
@@ -259,7 +281,8 @@ export default function RouteSearchForm({
                     key={idx}
                     type="button"
                     onClick={() => selectOrigin(r)}
-                    className="w-full px-4 py-3 text-left hover:bg-gray-50 border-b border-gray-100 last:border-b-0"
+                    disabled={loading}
+                    className="w-full border-b border-gray-100 px-4 py-3 text-left hover:bg-gray-50 last:border-b-0 disabled:opacity-60"
                   >
                     <div className="text-[14px] font-medium text-gray-900">
                       {r.name}
@@ -279,21 +302,23 @@ export default function RouteSearchForm({
         <Row>
           <FieldLabel>목적지</FieldLabel>
           <div ref={destinationWrapRef} className="relative">
-            <input
-              value={destinationQuery}
-              onChange={(e) => setDestinationQuery(e.target.value)}
-              onFocus={() => {
-                if (destination) resetDestinationForReinput();
-                else if (destinationResults.length > 0)
-                  setShowDestinationResults(true);
-              }}
-              onMouseDown={() => {
-                if (destination) resetDestinationForReinput();
-              }}
-              placeholder="목적지를 검색하세요"
-              disabled={!hasKakaoKey}
-              className={INPUT_BASE}
-            />
+            <div className="flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-3 py-3 focus-within:border-blue-500">
+              <input
+                value={destinationQuery}
+                onChange={(e) => setDestinationQuery(e.target.value)}
+                onFocus={() => {
+                  if (destination) resetDestinationForReinput();
+                  else if (destinationResults.length > 0)
+                    setShowDestinationResults(true);
+                }}
+                onMouseDown={() => {
+                  if (destination) resetDestinationForReinput();
+                }}
+                placeholder="목적지를 검색하세요"
+                disabled={!hasKakaoKey || loading}
+                className="w-full min-w-0 text-[15px] text-gray-900 placeholder:text-gray-400 outline-none disabled:bg-transparent"
+              />
+            </div>
 
             {showDestinationResults &&
               !destination &&
@@ -304,7 +329,8 @@ export default function RouteSearchForm({
                       key={idx}
                       type="button"
                       onClick={() => selectDestination(r)}
-                      className="w-full px-4 py-3 text-left hover:bg-gray-50 border-b border-gray-100 last:border-b-0"
+                      disabled={loading}
+                      className="w-full border-b border-gray-100 px-4 py-3 text-left hover:bg-gray-50 last:border-b-0 disabled:opacity-60"
                     >
                       <div className="text-[14px] font-medium text-gray-900">
                         {r.name}
@@ -327,7 +353,8 @@ export default function RouteSearchForm({
             type="datetime-local"
             value={departureTime}
             onChange={(e) => setDepartureTime(e.target.value)}
-            className={INPUT_BASE}
+            disabled={loading}
+            className="w-full min-w-0 max-w-full box-border rounded-xl border border-gray-200 bg-white px-3 py-3 text-[16px] sm:text-[14px] text-gray-900 focus:border-blue-500 outline-none disabled:opacity-60"
           />
           <div className="mt-2 text-[12px] text-gray-500">
             현재 시간이 기본값으로 설정됩니다.
@@ -337,8 +364,7 @@ export default function RouteSearchForm({
         <div className="h-px bg-gray-100" />
 
         <Row>
-          {/* 모바일에서는 1열, sm부터 2열 */}
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <div className="grid grid-cols-2 gap-3">
             <div>
               <FieldLabel>희망 소요시간(분)</FieldLabel>
               <input
@@ -347,7 +373,8 @@ export default function RouteSearchForm({
                 max={180}
                 value={maxTimeMin}
                 onChange={(e) => setMaxTimeMin(Number(e.target.value))}
-                className={INPUT_BASE}
+                disabled={loading}
+                className="w-full min-w-0 rounded-xl border border-gray-200 bg-white px-3 py-3 text-[14px] text-gray-900 focus:border-blue-500 outline-none disabled:opacity-60"
               />
             </div>
             <div>
@@ -358,29 +385,28 @@ export default function RouteSearchForm({
                 max={60}
                 value={maxWalkMin}
                 onChange={(e) => setMaxWalkMin(Number(e.target.value))}
-                className={INPUT_BASE}
+                disabled={loading}
+                className="w-full min-w-0 rounded-xl border border-gray-200 bg-white px-3 py-3 text-[14px] text-gray-900 focus:border-blue-500 outline-none disabled:opacity-60"
               />
             </div>
           </div>
         </Row>
       </form>
 
-      {/* ✅ absolute -> sticky: iOS picker/키보드 레이아웃 안정 */}
-      <div className="sticky bottom-0 left-0 right-0 border-t border-gray-100 bg-white/90 backdrop-blur">
-        <div className="p-3 pb-[calc(env(safe-area-inset-bottom)+12px)]">
-          <button
-            type="button"
-            onClick={(e) => {
-              const form = e.currentTarget.closest("div")
-                ?.previousSibling as HTMLFormElement | null;
-              form?.requestSubmit();
-            }}
-            disabled={!canSubmit || !hasKakaoKey}
-            className="w-full rounded-2xl bg-blue-600 py-4 text-[16px] font-semibold text-white shadow-[0_8px_20px_rgba(37,99,235,0.25)] disabled:bg-gray-300 disabled:shadow-none"
-          >
-            경로 검색
-          </button>
-        </div>
+      <div className="absolute bottom-0 left-0 right-0 p-3">
+        <button
+          type="button"
+          onClick={(e) => {
+            if (loading) return;
+            const form = e.currentTarget.closest("div")
+              ?.previousSibling as HTMLFormElement | null;
+            form?.requestSubmit();
+          }}
+          disabled={!canSubmit}
+          className="w-full rounded-2xl bg-blue-600 py-4 text-[15px] font-semibold text-white shadow-[0_8px_20px_rgba(37,99,235,0.25)] disabled:bg-gray-300 disabled:shadow-none"
+        >
+          {loading ? "검색 중..." : "경로 검색"}
+        </button>
       </div>
     </div>
   );
