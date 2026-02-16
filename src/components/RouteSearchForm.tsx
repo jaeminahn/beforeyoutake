@@ -33,13 +33,18 @@ function getCurrentDateTimeLocal(): string {
 
 function FieldLabel({ children }: { children: React.ReactNode }) {
   return (
-    <div className="text-[12px] font-medium text-gray-600 mb-1">{children}</div>
+    <div className="mb-1 text-[12px] font-medium text-gray-600">{children}</div>
   );
 }
 
 function Row({ children }: { children: React.ReactNode }) {
   return <div className="px-4 py-3">{children}</div>;
 }
+
+const parseIntOr = (v: string, fallback: number) => {
+  const n = parseInt(v, 10);
+  return Number.isFinite(n) ? n : fallback;
+};
 
 export default function RouteSearchForm({
   onSearch,
@@ -60,8 +65,10 @@ export default function RouteSearchForm({
   const [showOriginResults, setShowOriginResults] = useState(false);
   const [showDestinationResults, setShowDestinationResults] = useState(false);
 
-  const [maxTimeMin, setMaxTimeMin] = useState(60);
-  const [maxWalkMin, setMaxWalkMin] = useState(15);
+  // ✅ 숫자 입력은 string state로 관리 (빈 문자열 허용)
+  const [maxTimeMinInput, setMaxTimeMinInput] = useState("60");
+  const [maxWalkMinInput, setMaxWalkMinInput] = useState("15");
+
   const [departureTime, setDepartureTime] = useState(getCurrentDateTimeLocal());
 
   const hasKakaoKey = !!import.meta.env.VITE_KAKAO_REST_API_KEY;
@@ -126,10 +133,7 @@ export default function RouteSearchForm({
           if (!destination) setShowDestinationResults(true);
         }
       } catch (err) {
-        // 유저에게 API 관련 디테일 노출 X (콘솔로만)
         console.error("Kakao place search failed:", err);
-
-        // 유저 메시지는 일반화
         onError("장소 검색에 실패했습니다. 잠시 후 다시 시도해주세요.");
 
         if (isOrigin) setOriginResults([]);
@@ -193,6 +197,10 @@ export default function RouteSearchForm({
       const departureISO = departureTime
         ? new Date(departureTime).toISOString()
         : new Date().toISOString();
+
+      // ✅ submit 시점에만 number 변환
+      const maxTimeMin = parseIntOr(maxTimeMinInput, 60);
+      const maxWalkMin = parseIntOr(maxWalkMinInput, 15);
 
       const request: SearchRequest = {
         origin,
@@ -261,7 +269,7 @@ export default function RouteSearchForm({
                     key={idx}
                     type="button"
                     onClick={() => selectOrigin(r)}
-                    className="w-full px-4 py-3 text-left hover:bg-gray-50 border-b border-gray-100 last:border-b-0"
+                    className="w-full border-b border-gray-100 px-4 py-3 text-left hover:bg-gray-50 last:border-b-0"
                   >
                     <div className="text-[14px] font-medium text-gray-900">
                       {r.name}
@@ -308,7 +316,7 @@ export default function RouteSearchForm({
                       key={idx}
                       type="button"
                       onClick={() => selectDestination(r)}
-                      className="w-full px-4 py-3 text-left hover:bg-gray-50 border-b border-gray-100 last:border-b-0"
+                      className="w-full border-b border-gray-100 px-4 py-3 text-left hover:bg-gray-50 last:border-b-0"
                     >
                       <div className="text-[14px] font-medium text-gray-900">
                         {r.name}
@@ -331,7 +339,7 @@ export default function RouteSearchForm({
             type="datetime-local"
             value={departureTime}
             onChange={(e) => setDepartureTime(e.target.value)}
-            className="w-1/2 rounded-xl border border-gray-200 bg-white px-3 py-3 text-[14px] text-gray-900 focus:border-blue-500 outline-none"
+            className="w-1/2 rounded-xl border border-gray-200 bg-white px-3 py-3 text-[14px] text-gray-900 outline-none focus:border-blue-500"
           />
           <div className="mt-2 text-[12px] text-gray-500">
             현재 시간이 기본값으로 설정됩니다.
@@ -348,9 +356,12 @@ export default function RouteSearchForm({
                 type="number"
                 min={10}
                 max={180}
-                value={maxTimeMin}
-                onChange={(e) => setMaxTimeMin(Number(e.target.value))}
-                className="w-full rounded-xl border border-gray-200 bg-white px-3 py-3 text-[14px] text-gray-900 focus:border-blue-500 outline-none"
+                value={maxTimeMinInput}
+                onChange={(e) => {
+                  const v = e.target.value; // "" 허용
+                  if (/^\d*$/.test(v)) setMaxTimeMinInput(v);
+                }}
+                className="w-full rounded-xl border border-gray-200 bg-white px-3 py-3 text-[14px] text-gray-900 outline-none focus:border-blue-500"
               />
             </div>
             <div>
@@ -359,9 +370,12 @@ export default function RouteSearchForm({
                 type="number"
                 min={5}
                 max={60}
-                value={maxWalkMin}
-                onChange={(e) => setMaxWalkMin(Number(e.target.value))}
-                className="w-full rounded-xl border border-gray-200 bg-white px-3 py-3 text-[14px] text-gray-900 focus:border-blue-500 outline-none"
+                value={maxWalkMinInput}
+                onChange={(e) => {
+                  const v = e.target.value;
+                  if (/^\d*$/.test(v)) setMaxWalkMinInput(v);
+                }}
+                className="w-full rounded-xl border border-gray-200 bg-white px-3 py-3 text-[14px] text-gray-900 outline-none focus:border-blue-500"
               />
             </div>
           </div>
