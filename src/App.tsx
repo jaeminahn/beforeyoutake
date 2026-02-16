@@ -43,7 +43,7 @@ function App() {
             늦지마
           </h1>
           <p className="mt-1 text-[13px] text-gray-500">
-            어떻게든 늦지 않게 만들어 드려요.
+            어떻게든 늦지 않게 만들어줘요
           </p>
         </header>
 

@@ -33,13 +33,18 @@ function getCurrentDateTimeLocal(): string {
 
 function FieldLabel({ children }: { children: React.ReactNode }) {
   return (
-    <div className="text-[12px] font-medium text-gray-600 mb-1">{children}</div>
+    <div className="mb-1 text-[12px] font-medium text-gray-600 whitespace-nowrap">
+      {children}
+    </div>
   );
 }
 
 function Row({ children }: { children: React.ReactNode }) {
   return <div className="px-4 py-3">{children}</div>;
 }
+
+const INPUT_BASE =
+  "w-full rounded-xl border border-gray-200 bg-white px-3 py-3 text-[16px] text-gray-900 placeholder:text-gray-400 outline-none focus:border-blue-500 disabled:bg-transparent";
 
 export default function RouteSearchForm({
   onSearch,
@@ -126,12 +131,8 @@ export default function RouteSearchForm({
           if (!destination) setShowDestinationResults(true);
         }
       } catch (err) {
-        // 유저에게 API 관련 디테일 노출 X (콘솔로만)
         console.error("Kakao place search failed:", err);
-
-        // 유저 메시지는 일반화
         onError("장소 검색에 실패했습니다. 잠시 후 다시 시도해주세요.");
-
         if (isOrigin) setOriginResults([]);
         else setDestinationResults([]);
       }
@@ -210,9 +211,7 @@ export default function RouteSearchForm({
 
       const response = await fetch(apiUrl, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify(request),
       });
 
@@ -233,26 +232,25 @@ export default function RouteSearchForm({
 
   return (
     <div className="relative">
-      <form onSubmit={handleSubmit} className="pb-16">
+      {/* sticky footer 높이만큼 아래 공간 확보 */}
+      <form onSubmit={handleSubmit} className="pb-12">
         <Row>
           <FieldLabel>출발지</FieldLabel>
           <div ref={originWrapRef} className="relative">
-            <div className="flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-3 py-3 focus-within:border-blue-500">
-              <input
-                value={originQuery}
-                onChange={(e) => setOriginQuery(e.target.value)}
-                onFocus={() => {
-                  if (origin) resetOriginForReinput();
-                  else if (originResults.length > 0) setShowOriginResults(true);
-                }}
-                onMouseDown={() => {
-                  if (origin) resetOriginForReinput();
-                }}
-                placeholder="출발지를 검색하세요"
-                disabled={!hasKakaoKey}
-                className="w-full text-[15px] text-gray-900 placeholder:text-gray-400 outline-none disabled:bg-transparent"
-              />
-            </div>
+            <input
+              value={originQuery}
+              onChange={(e) => setOriginQuery(e.target.value)}
+              onFocus={() => {
+                if (origin) resetOriginForReinput();
+                else if (originResults.length > 0) setShowOriginResults(true);
+              }}
+              onMouseDown={() => {
+                if (origin) resetOriginForReinput();
+              }}
+              placeholder="출발지를 검색하세요"
+              disabled={!hasKakaoKey}
+              className={INPUT_BASE}
+            />
 
             {showOriginResults && !origin && originResults.length > 0 && (
               <div className="absolute z-20 mt-2 w-full overflow-hidden rounded-xl border border-gray-200 bg-white shadow-[0_10px_24px_rgba(0,0,0,0.10)]">
@@ -281,23 +279,21 @@ export default function RouteSearchForm({
         <Row>
           <FieldLabel>목적지</FieldLabel>
           <div ref={destinationWrapRef} className="relative">
-            <div className="flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-3 py-3 focus-within:border-blue-500">
-              <input
-                value={destinationQuery}
-                onChange={(e) => setDestinationQuery(e.target.value)}
-                onFocus={() => {
-                  if (destination) resetDestinationForReinput();
-                  else if (destinationResults.length > 0)
-                    setShowDestinationResults(true);
-                }}
-                onMouseDown={() => {
-                  if (destination) resetDestinationForReinput();
-                }}
-                placeholder="목적지를 검색하세요"
-                disabled={!hasKakaoKey}
-                className="w-full text-[15px] text-gray-900 placeholder:text-gray-400 outline-none disabled:bg-transparent"
-              />
-            </div>
+            <input
+              value={destinationQuery}
+              onChange={(e) => setDestinationQuery(e.target.value)}
+              onFocus={() => {
+                if (destination) resetDestinationForReinput();
+                else if (destinationResults.length > 0)
+                  setShowDestinationResults(true);
+              }}
+              onMouseDown={() => {
+                if (destination) resetDestinationForReinput();
+              }}
+              placeholder="목적지를 검색하세요"
+              disabled={!hasKakaoKey}
+              className={INPUT_BASE}
+            />
 
             {showDestinationResults &&
               !destination &&
@@ -331,7 +327,7 @@ export default function RouteSearchForm({
             type="datetime-local"
             value={departureTime}
             onChange={(e) => setDepartureTime(e.target.value)}
-            className="w-full rounded-xl border border-gray-200 bg-white px-3 py-3 text-[14px] text-gray-900 focus:border-blue-500 outline-none"
+            className={INPUT_BASE}
           />
           <div className="mt-2 text-[12px] text-gray-500">
             현재 시간이 기본값으로 설정됩니다.
@@ -341,7 +337,8 @@ export default function RouteSearchForm({
         <div className="h-px bg-gray-100" />
 
         <Row>
-          <div className="grid grid-cols-2 gap-3">
+          {/* 모바일에서는 1열, sm부터 2열 */}
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div>
               <FieldLabel>희망 소요시간(분)</FieldLabel>
               <input
@@ -350,7 +347,7 @@ export default function RouteSearchForm({
                 max={180}
                 value={maxTimeMin}
                 onChange={(e) => setMaxTimeMin(Number(e.target.value))}
-                className="w-full rounded-xl border border-gray-200 bg-white px-3 py-3 text-[14px] text-gray-900 focus:border-blue-500 outline-none"
+                className={INPUT_BASE}
               />
             </div>
             <div>
@@ -361,26 +358,29 @@ export default function RouteSearchForm({
                 max={60}
                 value={maxWalkMin}
                 onChange={(e) => setMaxWalkMin(Number(e.target.value))}
-                className="w-full rounded-xl border border-gray-200 bg-white px-3 py-3 text-[14px] text-gray-900 focus:border-blue-500 outline-none"
+                className={INPUT_BASE}
               />
             </div>
           </div>
         </Row>
       </form>
 
-      <div className="absolute bottom-0 left-0 right-0 p-3">
-        <button
-          type="button"
-          onClick={(e) => {
-            const form = e.currentTarget.closest("div")
-              ?.previousSibling as HTMLFormElement | null;
-            form?.requestSubmit();
-          }}
-          disabled={!canSubmit || !hasKakaoKey}
-          className="w-full rounded-2xl bg-blue-600 py-4 text-[15px] font-semibold text-white shadow-[0_8px_20px_rgba(37,99,235,0.25)] disabled:bg-gray-300 disabled:shadow-none"
-        >
-          경로 검색
-        </button>
+      {/* ✅ absolute -> sticky: iOS picker/키보드 레이아웃 안정 */}
+      <div className="sticky bottom-0 left-0 right-0 border-t border-gray-100 bg-white/90 backdrop-blur">
+        <div className="p-3 pb-[calc(env(safe-area-inset-bottom)+12px)]">
+          <button
+            type="button"
+            onClick={(e) => {
+              const form = e.currentTarget.closest("div")
+                ?.previousSibling as HTMLFormElement | null;
+              form?.requestSubmit();
+            }}
+            disabled={!canSubmit || !hasKakaoKey}
+            className="w-full rounded-2xl bg-blue-600 py-4 text-[16px] font-semibold text-white shadow-[0_8px_20px_rgba(37,99,235,0.25)] disabled:bg-gray-300 disabled:shadow-none"
+          >
+            경로 검색
+          </button>
+        </div>
       </div>
     </div>
   );
