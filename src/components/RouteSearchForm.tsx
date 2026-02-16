@@ -87,7 +87,6 @@ export default function RouteSearchForm({
   const [maxTimeMinInput, setMaxTimeMinInput] = useState("60");
   const [maxWalkMinInput, setMaxWalkMinInput] = useState("15");
 
-  // ✅ 내부 값은 24시간(HH:mm)로 유지(서버/ISO 생성 안전)
   const [departureTimeHHmm, setDepartureTimeHHmm] = useState(
     getCurrentTimeHHmm()
   );
@@ -278,30 +277,42 @@ export default function RouteSearchForm({
             padding: 0 !important;
             background: transparent !important;
           }
+
           .rtp .react-time-picker__inputGroup__input {
             border: 0 !important;
             background: transparent !important;
             box-shadow: none !important;
             outline: none !important;
             color: #111827;
-            font-size: 14px;
+            font-size: 16px !important;
             line-height: 20px;
             padding: 0 !important;
             min-width: 2ch;
           }
-          .rtp .react-time-picker__inputGroup__divider { color: #9ca3af; }
+
+          .rtp .react-time-picker__inputGroup__divider {
+            color: #9ca3af;
+            font-size: 16px !important;
+            line-height: 20px;
+          }
+
           .rtp .react-time-picker__inputGroup__amPm {
             border: 0 !important;
             background: transparent !important;
             color: #6b7280;
             padding-left: 6px;
+            font-size: 16px !important;
+            line-height: 20px;
           }
+
           .rtp .react-time-picker__button {
             border: 0 !important;
             background: transparent !important;
             padding: 0 !important;
           }
+
           .rtp .react-time-picker__button svg { stroke: #9ca3af; }
+
           .rtp input { -webkit-appearance: none; appearance: none; }
         `}
       </style>
@@ -431,7 +442,7 @@ export default function RouteSearchForm({
                 value={maxTimeMinInput}
                 onChange={(e) => {
                   const v = e.target.value;
-                  if (/^\\d*$/.test(v)) setMaxTimeMinInput(v);
+                  if (/^\d*$/.test(v)) setMaxTimeMinInput(v);
                 }}
                 className="h-12 w-full box-border rounded-xl border border-gray-200 bg-white px-3 py-3 text-[16px] leading-[20px] text-gray-900 outline-none focus:border-blue-500 [-webkit-appearance:none] [appearance:textfield]"
               />
@@ -446,7 +457,7 @@ export default function RouteSearchForm({
                 value={maxWalkMinInput}
                 onChange={(e) => {
                   const v = e.target.value;
-                  if (/^\\d*$/.test(v)) setMaxWalkMinInput(v);
+                  if (/^\d*$/.test(v)) setMaxWalkMinInput(v);
                 }}
                 className="h-12 w-full box-border rounded-xl border border-gray-200 bg-white px-3 py-3 text-[16px] leading-[20px] text-gray-900 outline-none focus:border-blue-500 [-webkit-appearance:none] [appearance:textfield]"
               />
