@@ -40,7 +40,7 @@ function App() {
         {/* Header */}
         <header className="mb-5">
           <h1 className="text-[22px] font-semibold text-gray-900 tracking-[-0.2px]">
-            늦지마
+            늦지마!
           </h1>
           <p className="mt-1 text-[13px] text-gray-500">
             어떻게든 늦지 않게 만들어줘요
