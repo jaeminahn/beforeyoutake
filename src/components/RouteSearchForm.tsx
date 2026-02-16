@@ -2,7 +2,6 @@ import { useState, useRef, useEffect, useCallback } from "react";
 import { SearchRequest, RouteResponse, Location } from "../types";
 
 interface Props {
-  loading: boolean; // ✅ 추가: 로딩 상태를 부모에서 내려받음
   onSearch: (response: RouteResponse) => void;
   onError: (error: string) => void;
   onLoadingChange: (loading: boolean) => void;
@@ -34,17 +33,15 @@ function getCurrentDateTimeLocal(): string {
 
 function FieldLabel({ children }: { children: React.ReactNode }) {
   return (
-    <div className="mb-1 text-[12px] font-medium text-gray-600">{children}</div>
+    <div className="text-[12px] font-medium text-gray-600 mb-1">{children}</div>
   );
 }
 
 function Row({ children }: { children: React.ReactNode }) {
-  // iPhone Safari에서 datetime-local이 오른쪽으로 overflow 나는 케이스 방어
-  return <div className="px-4 py-3 overflow-x-hidden">{children}</div>;
+  return <div className="px-4 py-3">{children}</div>;
 }
 
 export default function RouteSearchForm({
-  loading,
   onSearch,
   onError,
   onLoadingChange,
@@ -71,9 +68,6 @@ export default function RouteSearchForm({
 
   const originWrapRef = useRef<HTMLDivElement>(null);
   const destinationWrapRef = useRef<HTMLDivElement>(null);
-
-  // ✅ 중복 요청/연타 방지용 AbortController
-  const submitAbortRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
@@ -132,7 +126,10 @@ export default function RouteSearchForm({
           if (!destination) setShowDestinationResults(true);
         }
       } catch (err) {
+        // 유저에게 API 관련 디테일 노출 X (콘솔로만)
         console.error("Kakao place search failed:", err);
+
+        // 유저 메시지는 일반화
         onError("장소 검색에 실패했습니다. 잠시 후 다시 시도해주세요.");
 
         if (isOrigin) setOriginResults([]);
@@ -185,18 +182,10 @@ export default function RouteSearchForm({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    // ✅ 로딩 중 중복 submit 차단
-    if (loading) return;
-
     if (!origin || !destination) {
       onError("출발지와 목적지를 모두 선택해주세요.");
       return;
     }
-
-    // ✅ 직전 요청이 살아있으면 취소
-    submitAbortRef.current?.abort();
-    const controller = new AbortController();
-    submitAbortRef.current = controller;
 
     onLoadingChange(true);
 
@@ -225,7 +214,6 @@ export default function RouteSearchForm({
           "Content-Type": "application/json",
         },
         body: JSON.stringify(request),
-        signal: controller.signal, // ✅ AbortController 적용
       });
 
       const data = await response.json();
@@ -233,26 +221,18 @@ export default function RouteSearchForm({
       if (data.success) onSearch(data as RouteResponse);
       else onError(data.error || "경로를 찾을 수 없습니다.");
     } catch (err) {
-      // ✅ 취소(Abort)는 에러 메시지 띄우지 않음
-      if (err instanceof DOMException && err.name === "AbortError") return;
-
       onError(
         err instanceof Error ? err.message : "알 수 없는 오류가 발생했습니다."
       );
     } finally {
-      // ✅ 내가 마지막 요청일 때만 로딩 해제 (race 방지)
-      if (submitAbortRef.current === controller) {
-        onLoadingChange(false);
-        submitAbortRef.current = null;
-      }
+      onLoadingChange(false);
     }
   };
 
-  // ✅ 로딩 중에는 제출 불가
-  const canSubmit = !!origin && !!destination && hasKakaoKey && !loading;
+  const canSubmit = !!origin && !!destination;
 
   return (
-    <div className="relative overflow-x-hidden">
+    <div className="relative">
       <form onSubmit={handleSubmit} className="pb-16">
         <Row>
           <FieldLabel>출발지</FieldLabel>
@@ -269,8 +249,8 @@ export default function RouteSearchForm({
                   if (origin) resetOriginForReinput();
                 }}
                 placeholder="출발지를 검색하세요"
-                disabled={!hasKakaoKey || loading}
-                className="w-full min-w-0 text-[15px] text-gray-900 placeholder:text-gray-400 outline-none disabled:bg-transparent"
+                disabled={!hasKakaoKey}
+                className="w-full text-[15px] text-gray-900 placeholder:text-gray-400 outline-none disabled:bg-transparent"
               />
             </div>
 
@@ -281,8 +261,7 @@ export default function RouteSearchForm({
                     key={idx}
                     type="button"
                     onClick={() => selectOrigin(r)}
-                    disabled={loading}
-                    className="w-full border-b border-gray-100 px-4 py-3 text-left hover:bg-gray-50 last:border-b-0 disabled:opacity-60"
+                    className="w-full px-4 py-3 text-left hover:bg-gray-50 border-b border-gray-100 last:border-b-0"
                   >
                     <div className="text-[14px] font-medium text-gray-900">
                       {r.name}
@@ -315,8 +294,8 @@ export default function RouteSearchForm({
                   if (destination) resetDestinationForReinput();
                 }}
                 placeholder="목적지를 검색하세요"
-                disabled={!hasKakaoKey || loading}
-                className="w-full min-w-0 text-[15px] text-gray-900 placeholder:text-gray-400 outline-none disabled:bg-transparent"
+                disabled={!hasKakaoKey}
+                className="w-full text-[15px] text-gray-900 placeholder:text-gray-400 outline-none disabled:bg-transparent"
               />
             </div>
 
@@ -329,8 +308,7 @@ export default function RouteSearchForm({
                       key={idx}
                       type="button"
                       onClick={() => selectDestination(r)}
-                      disabled={loading}
-                      className="w-full border-b border-gray-100 px-4 py-3 text-left hover:bg-gray-50 last:border-b-0 disabled:opacity-60"
+                      className="w-full px-4 py-3 text-left hover:bg-gray-50 border-b border-gray-100 last:border-b-0"
                     >
                       <div className="text-[14px] font-medium text-gray-900">
                         {r.name}
@@ -353,8 +331,7 @@ export default function RouteSearchForm({
             type="datetime-local"
             value={departureTime}
             onChange={(e) => setDepartureTime(e.target.value)}
-            disabled={loading}
-            className="w-full min-w-0 max-w-full box-border rounded-xl border border-gray-200 bg-white px-3 py-3 text-[16px] sm:text-[14px] text-gray-900 focus:border-blue-500 outline-none disabled:opacity-60"
+            className="w-full rounded-xl border border-gray-200 bg-white px-3 py-3 text-[14px] text-gray-900 focus:border-blue-500 outline-none"
           />
           <div className="mt-2 text-[12px] text-gray-500">
             현재 시간이 기본값으로 설정됩니다.
@@ -373,8 +350,7 @@ export default function RouteSearchForm({
                 max={180}
                 value={maxTimeMin}
                 onChange={(e) => setMaxTimeMin(Number(e.target.value))}
-                disabled={loading}
-                className="w-full min-w-0 rounded-xl border border-gray-200 bg-white px-3 py-3 text-[14px] text-gray-900 focus:border-blue-500 outline-none disabled:opacity-60"
+                className="w-full rounded-xl border border-gray-200 bg-white px-3 py-3 text-[14px] text-gray-900 focus:border-blue-500 outline-none"
               />
             </div>
             <div>
@@ -385,8 +361,7 @@ export default function RouteSearchForm({
                 max={60}
                 value={maxWalkMin}
                 onChange={(e) => setMaxWalkMin(Number(e.target.value))}
-                disabled={loading}
-                className="w-full min-w-0 rounded-xl border border-gray-200 bg-white px-3 py-3 text-[14px] text-gray-900 focus:border-blue-500 outline-none disabled:opacity-60"
+                className="w-full rounded-xl border border-gray-200 bg-white px-3 py-3 text-[14px] text-gray-900 focus:border-blue-500 outline-none"
               />
             </div>
           </div>
@@ -397,15 +372,14 @@ export default function RouteSearchForm({
         <button
           type="button"
           onClick={(e) => {
-            if (loading) return;
             const form = e.currentTarget.closest("div")
               ?.previousSibling as HTMLFormElement | null;
             form?.requestSubmit();
           }}
-          disabled={!canSubmit}
+          disabled={!canSubmit || !hasKakaoKey}
           className="w-full rounded-2xl bg-blue-600 py-4 text-[15px] font-semibold text-white shadow-[0_8px_20px_rgba(37,99,235,0.25)] disabled:bg-gray-300 disabled:shadow-none"
         >
-          {loading ? "검색 중..." : "경로 검색"}
+          경로 검색
         </button>
       </div>
     </div>
