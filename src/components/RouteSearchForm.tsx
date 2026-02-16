@@ -261,7 +261,7 @@ export default function RouteSearchForm({
                 }}
                 placeholder="출발지를 검색하세요"
                 disabled={!hasKakaoKey}
-                className="w-full text-[15px] text-gray-900 placeholder:text-gray-400 outline-none disabled:bg-transparent"
+                className="w-full text-[16px] leading-[20px] text-gray-900 placeholder:text-gray-400 outline-none disabled:bg-transparent [-webkit-text-size-adjust:100%]"
               />
             </div>
 
@@ -306,7 +306,7 @@ export default function RouteSearchForm({
                 }}
                 placeholder="목적지를 검색하세요"
                 disabled={!hasKakaoKey}
-                className="w-full text-[15px] text-gray-900 placeholder:text-gray-400 outline-none disabled:bg-transparent"
+                className="w-full text-[16px] leading-[20px] text-gray-900 placeholder:text-gray-400 outline-none disabled:bg-transparent [-webkit-text-size-adjust:100%]"
               />
             </div>
 
