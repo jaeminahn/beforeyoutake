@@ -65,7 +65,7 @@ export default function RouteSearchForm({
   const [showOriginResults, setShowOriginResults] = useState(false);
   const [showDestinationResults, setShowDestinationResults] = useState(false);
 
-  // ✅ 숫자 입력은 string state로 관리 (빈 문자열 허용)
+  // ✅ number input: string state (빈 문자열 허용)
   const [maxTimeMinInput, setMaxTimeMinInput] = useState("60");
   const [maxWalkMinInput, setMaxWalkMinInput] = useState("15");
 
@@ -135,7 +135,6 @@ export default function RouteSearchForm({
       } catch (err) {
         console.error("Kakao place search failed:", err);
         onError("장소 검색에 실패했습니다. 잠시 후 다시 시도해주세요.");
-
         if (isOrigin) setOriginResults([]);
         else setDestinationResults([]);
       }
@@ -198,7 +197,6 @@ export default function RouteSearchForm({
         ? new Date(departureTime).toISOString()
         : new Date().toISOString();
 
-      // ✅ submit 시점에만 number 변환
       const maxTimeMin = parseIntOr(maxTimeMinInput, 60);
       const maxWalkMin = parseIntOr(maxWalkMinInput, 15);
 
@@ -218,9 +216,7 @@ export default function RouteSearchForm({
 
       const response = await fetch(apiUrl, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify(request),
       });
 
@@ -239,13 +235,22 @@ export default function RouteSearchForm({
 
   const canSubmit = !!origin && !!destination;
 
+  // ✅ iOS 줌/미묘한 위치 틀어짐 방지 핵심:
+  // - input font-size 16px 이상
+  // - 고정 height + line-height + appearance none
+  const inputBase =
+    "box-border w-full h-12 rounded-xl border border-gray-200 bg-white px-3 text-[16px] leading-[20px] text-gray-900 outline-none focus:border-blue-500 [appearance:textfield] [-webkit-appearance:none]";
+
+  const searchInput =
+    "w-full h-12 bg-transparent text-[16px] leading-[20px] text-gray-900 placeholder:text-gray-400 outline-none disabled:bg-transparent [appearance:textfield] [-webkit-appearance:none]";
+
   return (
     <div className="relative">
       <form onSubmit={handleSubmit} className="pb-16">
         <Row>
           <FieldLabel>출발지</FieldLabel>
           <div ref={originWrapRef} className="relative">
-            <div className="flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-3 py-3 focus-within:border-blue-500">
+            <div className="flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-3 focus-within:border-blue-500">
               <input
                 value={originQuery}
                 onChange={(e) => setOriginQuery(e.target.value)}
@@ -258,7 +263,7 @@ export default function RouteSearchForm({
                 }}
                 placeholder="출발지를 검색하세요"
                 disabled={!hasKakaoKey}
-                className="w-full text-[15px] text-gray-900 placeholder:text-gray-400 outline-none disabled:bg-transparent"
+                className={searchInput}
               />
             </div>
 
@@ -289,7 +294,7 @@ export default function RouteSearchForm({
         <Row>
           <FieldLabel>목적지</FieldLabel>
           <div ref={destinationWrapRef} className="relative">
-            <div className="flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-3 py-3 focus-within:border-blue-500">
+            <div className="flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-3 focus-within:border-blue-500">
               <input
                 value={destinationQuery}
                 onChange={(e) => setDestinationQuery(e.target.value)}
@@ -303,7 +308,7 @@ export default function RouteSearchForm({
                 }}
                 placeholder="목적지를 검색하세요"
                 disabled={!hasKakaoKey}
-                className="w-full text-[15px] text-gray-900 placeholder:text-gray-400 outline-none disabled:bg-transparent"
+                className={searchInput}
               />
             </div>
 
@@ -339,7 +344,7 @@ export default function RouteSearchForm({
             type="datetime-local"
             value={departureTime}
             onChange={(e) => setDepartureTime(e.target.value)}
-            className="w-1/2 rounded-xl border border-gray-200 bg-white px-3 py-3 text-[14px] text-gray-900 outline-none focus:border-blue-500"
+            className={`${inputBase} w-1/2`}
           />
           <div className="mt-2 text-[12px] text-gray-500">
             현재 시간이 기본값으로 설정됩니다.
@@ -354,6 +359,7 @@ export default function RouteSearchForm({
               <FieldLabel>희망 소요시간(분)</FieldLabel>
               <input
                 type="number"
+                inputMode="numeric"
                 min={10}
                 max={180}
                 value={maxTimeMinInput}
@@ -361,21 +367,22 @@ export default function RouteSearchForm({
                   const v = e.target.value; // "" 허용
                   if (/^\d*$/.test(v)) setMaxTimeMinInput(v);
                 }}
-                className="w-full rounded-xl border border-gray-200 bg-white px-3 py-3 text-[14px] text-gray-900 outline-none focus:border-blue-500"
+                className={inputBase}
               />
             </div>
             <div>
               <FieldLabel>최대 도보(분)</FieldLabel>
               <input
                 type="number"
+                inputMode="numeric"
                 min={5}
                 max={60}
                 value={maxWalkMinInput}
                 onChange={(e) => {
-                  const v = e.target.value;
+                  const v = e.target.value; // "" 허용
                   if (/^\d*$/.test(v)) setMaxWalkMinInput(v);
                 }}
-                className="w-full rounded-xl border border-gray-200 bg-white px-3 py-3 text-[14px] text-gray-900 outline-none focus:border-blue-500"
+                className={inputBase}
               />
             </div>
           </div>
