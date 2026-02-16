@@ -33,18 +33,13 @@ function getCurrentDateTimeLocal(): string {
 
 function FieldLabel({ children }: { children: React.ReactNode }) {
   return (
-    <div className="mb-1 text-[12px] font-medium text-gray-600">{children}</div>
+    <div className="text-[12px] font-medium text-gray-600 mb-1">{children}</div>
   );
 }
 
 function Row({ children }: { children: React.ReactNode }) {
   return <div className="px-4 py-3">{children}</div>;
 }
-
-const parseIntOr = (v: string, fallback: number) => {
-  const n = parseInt(v, 10);
-  return Number.isFinite(n) ? n : fallback;
-};
 
 export default function RouteSearchForm({
   onSearch,
@@ -65,7 +60,7 @@ export default function RouteSearchForm({
   const [showOriginResults, setShowOriginResults] = useState(false);
   const [showDestinationResults, setShowDestinationResults] = useState(false);
 
-  // ✅ number input: string state (빈 문자열 허용)
+  // ✅ iOS 줌/입력 중 "040" 문제까지 같이 해결하려면: number는 string state로 관리
   const [maxTimeMinInput, setMaxTimeMinInput] = useState("60");
   const [maxWalkMinInput, setMaxWalkMinInput] = useState("15");
 
@@ -133,8 +128,12 @@ export default function RouteSearchForm({
           if (!destination) setShowDestinationResults(true);
         }
       } catch (err) {
+        // 유저에게 API 관련 디테일 노출 X (콘솔로만)
         console.error("Kakao place search failed:", err);
+
+        // 유저 메시지는 일반화
         onError("장소 검색에 실패했습니다. 잠시 후 다시 시도해주세요.");
+
         if (isOrigin) setOriginResults([]);
         else setDestinationResults([]);
       }
@@ -197,8 +196,14 @@ export default function RouteSearchForm({
         ? new Date(departureTime).toISOString()
         : new Date().toISOString();
 
-      const maxTimeMin = parseIntOr(maxTimeMinInput, 60);
-      const maxWalkMin = parseIntOr(maxWalkMinInput, 15);
+      // ✅ submit 시점에만 숫자로 변환 (빈 문자열이면 기본값)
+      const maxTimeMin = Number.isFinite(parseInt(maxTimeMinInput, 10))
+        ? parseInt(maxTimeMinInput, 10)
+        : 60;
+
+      const maxWalkMin = Number.isFinite(parseInt(maxWalkMinInput, 10))
+        ? parseInt(maxWalkMinInput, 10)
+        : 15;
 
       const request: SearchRequest = {
         origin,
@@ -216,7 +221,9 @@ export default function RouteSearchForm({
 
       const response = await fetch(apiUrl, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+        },
         body: JSON.stringify(request),
       });
 
@@ -235,22 +242,13 @@ export default function RouteSearchForm({
 
   const canSubmit = !!origin && !!destination;
 
-  // ✅ iOS 줌/미묘한 위치 틀어짐 방지 핵심:
-  // - input font-size 16px 이상
-  // - 고정 height + line-height + appearance none
-  const inputBase =
-    "box-border w-full h-12 rounded-xl border border-gray-200 bg-white px-3 text-[16px] leading-[20px] text-gray-900 outline-none focus:border-blue-500 [appearance:textfield] [-webkit-appearance:none]";
-
-  const searchInput =
-    "w-full h-12 bg-transparent text-[16px] leading-[20px] text-gray-900 placeholder:text-gray-400 outline-none disabled:bg-transparent [appearance:textfield] [-webkit-appearance:none]";
-
   return (
     <div className="relative">
       <form onSubmit={handleSubmit} className="pb-16">
         <Row>
           <FieldLabel>출발지</FieldLabel>
           <div ref={originWrapRef} className="relative">
-            <div className="flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-3 focus-within:border-blue-500">
+            <div className="flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-3 py-3 focus-within:border-blue-500">
               <input
                 value={originQuery}
                 onChange={(e) => setOriginQuery(e.target.value)}
@@ -263,7 +261,7 @@ export default function RouteSearchForm({
                 }}
                 placeholder="출발지를 검색하세요"
                 disabled={!hasKakaoKey}
-                className={searchInput}
+                className="w-full text-[15px] text-gray-900 placeholder:text-gray-400 outline-none disabled:bg-transparent"
               />
             </div>
 
@@ -274,7 +272,7 @@ export default function RouteSearchForm({
                     key={idx}
                     type="button"
                     onClick={() => selectOrigin(r)}
-                    className="w-full border-b border-gray-100 px-4 py-3 text-left hover:bg-gray-50 last:border-b-0"
+                    className="w-full px-4 py-3 text-left hover:bg-gray-50 border-b border-gray-100 last:border-b-0"
                   >
                     <div className="text-[14px] font-medium text-gray-900">
                       {r.name}
@@ -294,7 +292,7 @@ export default function RouteSearchForm({
         <Row>
           <FieldLabel>목적지</FieldLabel>
           <div ref={destinationWrapRef} className="relative">
-            <div className="flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-3 focus-within:border-blue-500">
+            <div className="flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-3 py-3 focus-within:border-blue-500">
               <input
                 value={destinationQuery}
                 onChange={(e) => setDestinationQuery(e.target.value)}
@@ -308,7 +306,7 @@ export default function RouteSearchForm({
                 }}
                 placeholder="목적지를 검색하세요"
                 disabled={!hasKakaoKey}
-                className={searchInput}
+                className="w-full text-[15px] text-gray-900 placeholder:text-gray-400 outline-none disabled:bg-transparent"
               />
             </div>
 
@@ -321,7 +319,7 @@ export default function RouteSearchForm({
                       key={idx}
                       type="button"
                       onClick={() => selectDestination(r)}
-                      className="w-full border-b border-gray-100 px-4 py-3 text-left hover:bg-gray-50 last:border-b-0"
+                      className="w-full px-4 py-3 text-left hover:bg-gray-50 border-b border-gray-100 last:border-b-0"
                     >
                       <div className="text-[14px] font-medium text-gray-900">
                         {r.name}
@@ -344,7 +342,7 @@ export default function RouteSearchForm({
             type="datetime-local"
             value={departureTime}
             onChange={(e) => setDepartureTime(e.target.value)}
-            className={`${inputBase} w-1/2`}
+            className="w-full rounded-xl border border-gray-200 bg-white px-3 py-3 text-[14px] text-gray-900 focus:border-blue-500 outline-none"
           />
           <div className="mt-2 text-[12px] text-gray-500">
             현재 시간이 기본값으로 설정됩니다.
@@ -364,10 +362,10 @@ export default function RouteSearchForm({
                 max={180}
                 value={maxTimeMinInput}
                 onChange={(e) => {
-                  const v = e.target.value; // "" 허용
+                  const v = e.target.value;
                   if (/^\d*$/.test(v)) setMaxTimeMinInput(v);
                 }}
-                className={inputBase}
+                className="w-full rounded-xl border border-gray-200 bg-white px-3 py-3 text-[16px] leading-[20px] text-gray-900 focus:border-blue-500 outline-none [-webkit-appearance:none] [appearance:textfield] h-12 box-border"
               />
             </div>
             <div>
@@ -379,10 +377,10 @@ export default function RouteSearchForm({
                 max={60}
                 value={maxWalkMinInput}
                 onChange={(e) => {
-                  const v = e.target.value; // "" 허용
+                  const v = e.target.value;
                   if (/^\d*$/.test(v)) setMaxWalkMinInput(v);
                 }}
-                className={inputBase}
+                className="w-full rounded-xl border border-gray-200 bg-white px-3 py-3 text-[16px] leading-[20px] text-gray-900 focus:border-blue-500 outline-none [-webkit-appearance:none] [appearance:textfield] h-12 box-border"
               />
             </div>
           </div>
