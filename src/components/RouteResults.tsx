@@ -19,11 +19,9 @@ interface Props {
 }
 
 const ROUTE_TYPE_LABELS: Record<string, string> = {
-  "transit-only": "대중교통",
-  "taxi-only": "택시",
-  "taxi-transit": "대중교통+택시",
+  "taxi-only": "택시만",
+  "taxi-transit": "택시+대중교통",
   "transit-taxi": "대중교통+택시",
-  "walk-only": "도보",
 };
 
 function formatTime(isoString?: string): string {
@@ -114,12 +112,16 @@ function StatBox({
 
 function RouteCard({
   route,
+  title,
   isBest = false,
+  defaultExpanded,
 }: {
   route: RouteCandidate;
+  title: string;
   isBest?: boolean;
+  defaultExpanded?: boolean;
 }) {
-  const [expanded, setExpanded] = useState(isBest);
+  const [expanded, setExpanded] = useState(defaultExpanded ?? isBest);
 
   const timeLine = useMemo(() => {
     const dep = formatTime(route.departureTime);
@@ -144,7 +146,6 @@ function RouteCard({
           : "bg-white border border-gray-200 shadow-[0_8px_24px_rgba(17,24,39,0.06)]"
       }`}
     >
-      {/* Header */}
       <div className="flex items-start justify-between gap-3 mb-3 sm:mb-4">
         <div className="min-w-0">
           <div className="flex items-center gap-2 min-w-0">
@@ -156,15 +157,16 @@ function RouteCard({
                 isBest ? "text-white" : "text-gray-900"
               } text-[16px] sm:text-xl`}
             >
-              {isBest ? "추천" : typeLabel}
+              {title}
             </h3>
 
-            {/* 베스트만 타입칩 표시 */}
-            {isBest && (
-              <span className="shrink-0 px-2.5 py-1 rounded-full text-[12px] font-semibold bg-white/20 text-white">
-                {typeLabel}
-              </span>
-            )}
+            <span
+              className={`shrink-0 px-2.5 py-1 rounded-full text-[12px] font-semibold ${
+                isBest ? "bg-white/20 text-white" : "bg-gray-100 text-gray-700"
+              }`}
+            >
+              {typeLabel}
+            </span>
           </div>
 
           {(timeLine || slackLabel) && (
@@ -207,7 +209,6 @@ function RouteCard({
         </button>
       </div>
 
-      {/* Stats: 모바일 2열 + 총요금 span-2 */}
       <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 sm:gap-4 mb-3 sm:mb-4">
         <StatBox
           isBest={isBest}
@@ -252,7 +253,6 @@ function RouteCard({
                   </div>
 
                   <div className="flex-1 min-w-0">
-                    {/* leg header: truncate */}
                     <div className="flex items-center justify-between gap-3 mb-2">
                       <p
                         className={`font-semibold min-w-0 truncate ${
@@ -417,7 +417,9 @@ function RouteCard({
                                         title={`${step.from} → ${step.to}`}
                                       >
                                         {step.from} → {step.to}
-                                        {step.stationCount > 0 &&
+                                        {typeof step.stationCount ===
+                                          "number" &&
+                                          step.stationCount > 0 &&
                                           ` (${step.stationCount}개 정거장)`}
                                       </p>
                                     )}
@@ -457,7 +459,25 @@ export default function RouteResults({ response }: Props) {
     constraints,
   } = response;
 
-  if (routes.length === 0) return null;
+  if (!routes || routes.length === 0) return null;
+
+  const taxiOnly =
+    (response as any).taxiOnly ?? routes.find((r) => r.type === "taxi-only");
+  const mixedRoutes = routes.filter(
+    (r) => r.type === "taxi-transit" || r.type === "transit-taxi"
+  );
+
+  const bestMixed = mixedRoutes[0] ?? null;
+
+  const savingsKrw =
+    taxiOnly && bestMixed
+      ? Math.max(0, taxiOnly.totalCostKrw - bestMixed.totalCostKrw)
+      : null;
+
+  const savingsTimeMin =
+    taxiOnly && bestMixed
+      ? taxiOnly.totalTimeMin - bestMixed.totalTimeMin
+      : null;
 
   if (noFeasibleRoute) {
     return (
@@ -509,13 +529,22 @@ export default function RouteResults({ response }: Props) {
           </div>
         </div>
 
-        {routes.length > 0 && (
+        {taxiOnly && (
           <div className="space-y-3 sm:space-y-4">
             <h3 className="text-[15px] sm:text-lg font-semibold text-gray-700">
-              참고 경로
+              택시만 탔을 때
             </h3>
-            {routes.map((route, idx) => (
-              <RouteCard key={idx} route={route} />
+            <RouteCard route={taxiOnly} title="택시만" />
+          </div>
+        )}
+
+        {mixedRoutes.length > 0 && (
+          <div className="space-y-3 sm:space-y-4">
+            <h3 className="text-[15px] sm:text-lg font-semibold text-gray-700">
+              참고(믹스)
+            </h3>
+            {mixedRoutes.map((r, idx) => (
+              <RouteCard key={r.id ?? idx} route={r} title="참고" />
             ))}
           </div>
         )}
@@ -523,28 +552,75 @@ export default function RouteResults({ response }: Props) {
     );
   }
 
-  const bestRoute = routes[0];
-
   return (
     <div className="space-y-4 sm:space-y-6">
       <div className="flex items-center justify-between">
         <h2 className="text-[18px] sm:text-2xl font-bold text-gray-900">
-          추천 경로
+          추천 택시 절약 루트
         </h2>
         <span className="text-[12px] sm:text-sm text-gray-500">
-          {routes.length}개
+          믹스 {mixedRoutes.length}개
         </span>
       </div>
 
-      <RouteCard route={bestRoute} isBest={true} />
+      {taxiOnly && bestMixed && savingsKrw !== null && (
+        <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-5 sm:p-6">
+          <div className="flex items-start gap-3">
+            <div className="shrink-0 mt-0.5">
+              <TrendingUp className="w-6 h-6 text-emerald-600" />
+            </div>
+            <div className="min-w-0">
+              <p className="text-[14px] sm:text-base font-semibold text-emerald-900">
+                {savingsKrw.toLocaleString()}원을 아꼈어요!
+              </p>
+              <p className="mt-1 text-[12px] sm:text-sm text-emerald-800">
+                택시만 탔을 때({taxiOnly.totalCostKrw.toLocaleString()}원) 대비{" "}
+                추천 루트({bestMixed.totalCostKrw.toLocaleString()}원)
+              </p>
+              {typeof savingsTimeMin === "number" && savingsTimeMin !== 0 && (
+                <p className="mt-1 text-[12px] sm:text-sm text-emerald-800">
+                  시간은{" "}
+                  {savingsTimeMin > 0
+                    ? `${savingsTimeMin}분 더 빨라요`
+                    : `${Math.abs(savingsTimeMin)}분 더 걸려요`}
+                </p>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
-      {routes.length > 1 && (
+      {bestMixed ? (
+        <RouteCard
+          route={bestMixed}
+          title="추천"
+          isBest={true}
+          defaultExpanded
+        />
+      ) : (
+        <div className="rounded-2xl border border-gray-200 bg-white p-5 sm:p-6">
+          <p className="text-gray-700 text-[14px] sm:text-base">
+            현재 조건에서 추천할 믹스 경로를 찾지 못했습니다.
+          </p>
+        </div>
+      )}
+
+      {taxiOnly && (
         <div className="space-y-3 sm:space-y-4">
           <h3 className="text-[16px] sm:text-xl font-bold text-gray-900">
-            대안
+            택시만 탔을 때
           </h3>
-          {routes.slice(1).map((route, idx) => (
-            <RouteCard key={idx} route={route} />
+          <RouteCard route={taxiOnly} title="택시만" />
+        </div>
+      )}
+
+      {mixedRoutes.length > 1 && (
+        <div className="space-y-3 sm:space-y-4">
+          <h3 className="text-[16px] sm:text-xl font-bold text-gray-900">
+            대안(믹스)
+          </h3>
+          {mixedRoutes.slice(1).map((r, idx) => (
+            <RouteCard key={r.id ?? idx} route={r} title="대안" />
           ))}
         </div>
       )}

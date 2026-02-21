@@ -40,11 +40,9 @@ function App() {
         {/* Header */}
         <header className="mb-5">
           <h1 className="text-[22px] font-semibold text-gray-900 tracking-[-0.2px]">
-            늦지마!
+            타기전에
           </h1>
-          <p className="mt-1 text-[13px] text-gray-500">
-            어떻게든 늦지 않게 만들어줘요
-          </p>
+          <p className="mt-1 text-[13px] text-gray-500">택시비 줄이는 길찾기</p>
         </header>
 
         {/* Search Form */}
@@ -91,7 +89,7 @@ function App() {
                       경로를 찾는 중
                     </div>
                     <div className="mt-0.5 text-[12px] text-gray-500">
-                      교통/택시 후보를 계산하고 있어요.
+                      후보를 계산하고 있어요.
                     </div>
                   </div>
                 </div>

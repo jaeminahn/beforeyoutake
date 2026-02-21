@@ -51,7 +51,6 @@ function buildTodayDepartureISO(timeHHmm: string): string {
     0,
     0
   );
-
   return d.toISOString();
 }
 
@@ -228,7 +227,7 @@ export default function RouteSearchForm({
         destination,
         maxTimeMin,
         maxWalkMin,
-        requireTaxi: false,
+        requireTaxi: true,
         taxiMaxSegments: 1,
         departureTime: departureISO,
       };
