@@ -90,6 +90,8 @@ export default function RouteSearchForm({
     getCurrentTimeHHmm()
   );
 
+  const [loading, setLoading] = useState(false);
+
   const hasKakaoKey = !!import.meta.env.VITE_KAKAO_REST_API_KEY;
 
   const originWrapRef = useRef<HTMLDivElement>(null);
@@ -110,6 +112,7 @@ export default function RouteSearchForm({
   const searchPlaces = useCallback(
     async (query: string, isOrigin: boolean) => {
       if (!hasKakaoKey) return;
+      if (loading) return;
 
       const q = query.trim();
       if (q.length < 2) {
@@ -158,22 +161,25 @@ export default function RouteSearchForm({
         else setDestinationResults([]);
       }
     },
-    [hasKakaoKey, onError, origin, destination]
+    [hasKakaoKey, onError, origin, destination, loading]
   );
 
   useEffect(() => {
     if (origin) return;
+    if (loading) return;
     const t = setTimeout(() => searchPlaces(originQuery, true), 250);
     return () => clearTimeout(t);
-  }, [originQuery, origin, searchPlaces]);
+  }, [originQuery, origin, searchPlaces, loading]);
 
   useEffect(() => {
     if (destination) return;
+    if (loading) return;
     const t = setTimeout(() => searchPlaces(destinationQuery, false), 250);
     return () => clearTimeout(t);
-  }, [destinationQuery, destination, searchPlaces]);
+  }, [destinationQuery, destination, searchPlaces, loading]);
 
   const selectOrigin = (place: PlaceResult) => {
+    if (loading) return;
     setOrigin({ name: place.name, lat: place.lat, lng: place.lng });
     setOriginQuery(place.name);
     setOriginResults([]);
@@ -181,6 +187,7 @@ export default function RouteSearchForm({
   };
 
   const selectDestination = (place: PlaceResult) => {
+    if (loading) return;
     setDestination({ name: place.name, lat: place.lat, lng: place.lng });
     setDestinationQuery(place.name);
     setDestinationResults([]);
@@ -188,6 +195,7 @@ export default function RouteSearchForm({
   };
 
   const resetOriginForReinput = () => {
+    if (loading) return;
     setOrigin(null);
     setOriginQuery("");
     setOriginResults([]);
@@ -195,6 +203,7 @@ export default function RouteSearchForm({
   };
 
   const resetDestinationForReinput = () => {
+    if (loading) return;
     setDestination(null);
     setDestinationQuery("");
     setDestinationResults([]);
@@ -203,12 +212,14 @@ export default function RouteSearchForm({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (loading) return;
 
     if (!origin || !destination) {
       onError("출발지와 목적지를 모두 선택해주세요.");
       return;
     }
 
+    setLoading(true);
     onLoadingChange(true);
 
     try {
@@ -251,6 +262,7 @@ export default function RouteSearchForm({
         err instanceof Error ? err.message : "알 수 없는 오류가 발생했습니다."
       );
     } finally {
+      setLoading(false);
       onLoadingChange(false);
     }
   };
@@ -325,37 +337,42 @@ export default function RouteSearchForm({
                 value={originQuery}
                 onChange={(e) => setOriginQuery(e.target.value)}
                 onFocus={() => {
+                  if (loading) return;
                   if (origin) resetOriginForReinput();
                   else if (originResults.length > 0) setShowOriginResults(true);
                 }}
                 onMouseDown={() => {
+                  if (loading) return;
                   if (origin) resetOriginForReinput();
                 }}
                 placeholder="출발지를 검색하세요"
-                disabled={!hasKakaoKey}
+                disabled={!hasKakaoKey || loading}
                 className="w-full text-[16px] leading-[20px] text-gray-900 placeholder:text-gray-400 outline-none disabled:bg-transparent [-webkit-text-size-adjust:100%]"
               />
             </div>
 
-            {showOriginResults && !origin && originResults.length > 0 && (
-              <div className="absolute z-20 mt-2 w-full overflow-hidden rounded-xl border border-gray-200 bg-white shadow-[0_10px_24px_rgba(0,0,0,0.10)]">
-                {originResults.slice(0, 8).map((r, idx) => (
-                  <button
-                    key={idx}
-                    type="button"
-                    onClick={() => selectOrigin(r)}
-                    className="w-full border-b border-gray-100 px-4 py-3 text-left hover:bg-gray-50 last:border-b-0"
-                  >
-                    <div className="text-[14px] font-medium text-gray-900">
-                      {r.name}
-                    </div>
-                    <div className="mt-0.5 text-[12px] text-gray-500">
-                      {r.address}
-                    </div>
-                  </button>
-                ))}
-              </div>
-            )}
+            {showOriginResults &&
+              !origin &&
+              originResults.length > 0 &&
+              !loading && (
+                <div className="absolute z-20 mt-2 w-full overflow-hidden rounded-xl border border-gray-200 bg-white shadow-[0_10px_24px_rgba(0,0,0,0.10)]">
+                  {originResults.slice(0, 8).map((r, idx) => (
+                    <button
+                      key={idx}
+                      type="button"
+                      onClick={() => selectOrigin(r)}
+                      className="w-full border-b border-gray-100 px-4 py-3 text-left hover:bg-gray-50 last:border-b-0"
+                    >
+                      <div className="text-[14px] font-medium text-gray-900">
+                        {r.name}
+                      </div>
+                      <div className="mt-0.5 text-[12px] text-gray-500">
+                        {r.address}
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              )}
           </div>
         </Row>
 
@@ -369,22 +386,25 @@ export default function RouteSearchForm({
                 value={destinationQuery}
                 onChange={(e) => setDestinationQuery(e.target.value)}
                 onFocus={() => {
+                  if (loading) return;
                   if (destination) resetDestinationForReinput();
                   else if (destinationResults.length > 0)
                     setShowDestinationResults(true);
                 }}
                 onMouseDown={() => {
+                  if (loading) return;
                   if (destination) resetDestinationForReinput();
                 }}
                 placeholder="목적지를 검색하세요"
-                disabled={!hasKakaoKey}
+                disabled={!hasKakaoKey || loading}
                 className="w-full text-[16px] leading-[20px] text-gray-900 placeholder:text-gray-400 outline-none disabled:bg-transparent [-webkit-text-size-adjust:100%]"
               />
             </div>
 
             {showDestinationResults &&
               !destination &&
-              destinationResults.length > 0 && (
+              destinationResults.length > 0 &&
+              !loading && (
                 <div className="absolute z-20 mt-2 w-full overflow-hidden rounded-xl border border-gray-200 bg-white shadow-[0_10px_24px_rgba(0,0,0,0.10)]">
                   {destinationResults.slice(0, 8).map((r, idx) => (
                     <button
@@ -420,6 +440,7 @@ export default function RouteSearchForm({
               clearIcon={null}
               format="h:mm a"
               className="rtp w-full"
+              disabled={loading}
             />
           </div>
           <div className="mt-2 text-[12px] text-gray-500">
@@ -439,11 +460,12 @@ export default function RouteSearchForm({
                 min={10}
                 max={180}
                 value={maxTimeMinInput}
+                disabled={loading}
                 onChange={(e) => {
                   const v = e.target.value;
                   if (/^\d*$/.test(v)) setMaxTimeMinInput(v);
                 }}
-                className="h-12 w-full box-border rounded-xl border border-gray-200 bg-white px-3 py-3 text-[16px] leading-[20px] text-gray-900 outline-none focus:border-blue-500 [-webkit-appearance:none] [appearance:textfield]"
+                className="h-12 w-full box-border rounded-xl border border-gray-200 bg-white px-3 py-3 text-[16px] leading-[20px] text-gray-900 outline-none focus:border-blue-500 disabled:bg-gray-50 disabled:text-gray-500 [-webkit-appearance:none] [appearance:textfield]"
               />
             </div>
             <div>
@@ -454,11 +476,12 @@ export default function RouteSearchForm({
                 min={5}
                 max={60}
                 value={maxWalkMinInput}
+                disabled={loading}
                 onChange={(e) => {
                   const v = e.target.value;
                   if (/^\d*$/.test(v)) setMaxWalkMinInput(v);
                 }}
-                className="h-12 w-full box-border rounded-xl border border-gray-200 bg-white px-3 py-3 text-[16px] leading-[20px] text-gray-900 outline-none focus:border-blue-500 [-webkit-appearance:none] [appearance:textfield]"
+                className="h-12 w-full box-border rounded-xl border border-gray-200 bg-white px-3 py-3 text-[16px] leading-[20px] text-gray-900 outline-none focus:border-blue-500 disabled:bg-gray-50 disabled:text-gray-500 [-webkit-appearance:none] [appearance:textfield]"
               />
             </div>
           </div>
@@ -469,14 +492,15 @@ export default function RouteSearchForm({
         <button
           type="button"
           onClick={(e) => {
+            if (loading) return;
             const form = e.currentTarget.closest("div")
               ?.previousSibling as HTMLFormElement | null;
             form?.requestSubmit();
           }}
-          disabled={!canSubmit || !hasKakaoKey}
+          disabled={!canSubmit || !hasKakaoKey || loading}
           className="w-full rounded-2xl bg-blue-600 py-4 text-[15px] font-semibold text-white shadow-[0_8px_20px_rgba(37,99,235,0.25)] disabled:bg-gray-300 disabled:shadow-none"
         >
-          경로 검색
+          {loading ? "검색 중..." : "경로 검색"}
         </button>
       </div>
     </div>

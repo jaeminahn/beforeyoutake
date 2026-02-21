@@ -89,7 +89,7 @@ function App() {
                       경로를 찾는 중
                     </div>
                     <div className="mt-0.5 text-[12px] text-gray-500">
-                      후보를 계산하고 있어요.
+                      후보를 검색하고 있어요.
                     </div>
                   </div>
                 </div>

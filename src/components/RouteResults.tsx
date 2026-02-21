@@ -19,7 +19,7 @@ interface Props {
 }
 
 const ROUTE_TYPE_LABELS: Record<string, string> = {
-  "taxi-only": "택시만",
+  "taxi-only": "택시",
   "taxi-transit": "택시+대중교통",
   "transit-taxi": "대중교통+택시",
 };
@@ -115,11 +115,13 @@ function RouteCard({
   title,
   isBest = false,
   defaultExpanded,
+  variant = "featured",
 }: {
   route: RouteCandidate;
   title: string;
   isBest?: boolean;
   defaultExpanded?: boolean;
+  variant?: "featured" | "compact";
 }) {
   const [expanded, setExpanded] = useState(defaultExpanded ?? isBest);
 
@@ -137,6 +139,7 @@ function RouteCard({
   }, [route.slackMin]);
 
   const typeLabel = ROUTE_TYPE_LABELS[route.type] ?? route.type;
+  const showTitle = variant === "featured";
 
   return (
     <div
@@ -148,28 +151,66 @@ function RouteCard({
     >
       <div className="flex items-start justify-between gap-3 mb-3 sm:mb-4">
         <div className="min-w-0">
-          <div className="flex items-center gap-2 min-w-0">
-            {isBest && (
-              <TrendingUp className="w-5 h-5 sm:w-6 sm:h-6 shrink-0" />
-            )}
-            <h3
-              className={`font-bold min-w-0 ${
-                isBest ? "text-white" : "text-gray-900"
-              } text-[16px] sm:text-xl`}
-            >
-              {title}
-            </h3>
+          {showTitle ? (
+            <div className="flex items-center gap-2 min-w-0">
+              {isBest && (
+                <TrendingUp className="w-5 h-5 sm:w-6 sm:h-6 shrink-0" />
+              )}
+              <h3
+                className={`font-bold min-w-0 ${
+                  isBest ? "text-white" : "text-gray-900"
+                } text-[16px] sm:text-xl`}
+              >
+                {title}
+              </h3>
 
-            <span
-              className={`shrink-0 px-2.5 py-1 rounded-full text-[12px] font-semibold ${
-                isBest ? "bg-white/20 text-white" : "bg-gray-100 text-gray-700"
-              }`}
-            >
-              {typeLabel}
-            </span>
-          </div>
+              <span
+                className={`shrink-0 px-2.5 py-1 rounded-full text-[12px] font-semibold ${
+                  isBest
+                    ? "bg-white/20 text-white"
+                    : "bg-gray-100 text-gray-700"
+                }`}
+              >
+                {typeLabel}
+              </span>
+            </div>
+          ) : (
+            <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+              <span
+                className={`shrink-0 px-2.5 py-1 rounded-full text-[12px] font-semibold ${
+                  isBest
+                    ? "bg-white/20 text-white"
+                    : "bg-gray-100 text-gray-700"
+                }`}
+              >
+                {typeLabel}
+              </span>
 
-          {(timeLine || slackLabel) && (
+              {timeLine && (
+                <div
+                  className={`flex items-center min-w-0 ${
+                    isBest ? "text-white/90" : "text-gray-700"
+                  } text-[12px] sm:text-sm`}
+                >
+                  <Clock className="w-4 h-4 mr-1 shrink-0" />
+                  <span className="truncate">{timeLine}</span>
+                </div>
+              )}
+
+              {slackLabel && (
+                <div
+                  className={`flex items-center shrink-0 ${
+                    isBest ? "text-white/80" : "text-gray-500"
+                  } text-[12px] sm:text-sm`}
+                >
+                  <Activity className="w-4 h-4 mr-1" />
+                  {slackLabel}
+                </div>
+              )}
+            </div>
+          )}
+
+          {showTitle && (timeLine || slackLabel) && (
             <div
               className={`mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 ${
                 isBest ? "text-white/90" : "text-gray-600"
@@ -218,7 +259,7 @@ function RouteCard({
         />
         <StatBox
           isBest={isBest}
-          icon={<Activity className="w-4 h-4" />}
+          icon={<Footprints className="w-4 h-4" />}
           label="도보"
           value={`${route.walkTimeMin}분`}
         />
@@ -287,15 +328,17 @@ function RouteCard({
                           isBest ? "text-white/85" : "text-gray-700"
                         }`}
                       >
-                        {typeof leg.details.taxiFare === "number" && (
+                        {typeof (leg.details as any).taxiFare === "number" && (
                           <p>
-                            택시 요금 {leg.details.taxiFare.toLocaleString()}원
+                            택시 요금{" "}
+                            {(leg.details as any).taxiFare.toLocaleString()}원
                           </p>
                         )}
-                        {typeof leg.details.tollFare === "number" &&
-                          leg.details.tollFare > 0 && (
+                        {typeof (leg.details as any).tollFare === "number" &&
+                          (leg.details as any).tollFare > 0 && (
                             <p>
-                              통행료 {leg.details.tollFare.toLocaleString()}원
+                              통행료{" "}
+                              {(leg.details as any).tollFare.toLocaleString()}원
                             </p>
                           )}
                       </div>
@@ -304,41 +347,45 @@ function RouteCard({
                     {isTransit &&
                       leg.details &&
                       "steps" in leg.details &&
-                      leg.details.steps && (
+                      (leg.details as any).steps && (
                         <>
                           <div
                             className={`mt-2 text-[13px] sm:text-sm ${
                               isBest ? "text-white/85" : "text-gray-700"
                             }`}
                           >
-                            {"totalWalkM" in leg.details &&
-                              typeof leg.details.totalWalkM === "number" && (
+                            {"totalWalkM" in (leg.details as any) &&
+                              typeof (leg.details as any).totalWalkM ===
+                                "number" && (
                                 <span className="mr-3 whitespace-nowrap">
                                   도보{" "}
                                   {Math.ceil(
-                                    (leg.details.totalWalkM ?? 0) / 70
+                                    (((leg.details as any).totalWalkM ??
+                                      0) as number) / 70
                                   )}
                                   분
                                 </span>
                               )}
-                            {"busCount" in leg.details &&
-                              typeof leg.details.busCount === "number" && (
+                            {"busCount" in (leg.details as any) &&
+                              typeof (leg.details as any).busCount ===
+                                "number" && (
                                 <span className="mr-3 whitespace-nowrap">
-                                  버스 {leg.details.busCount}회
+                                  버스 {(leg.details as any).busCount}회
                                 </span>
                               )}
-                            {"subwayCount" in leg.details &&
-                              typeof leg.details.subwayCount === "number" && (
+                            {"subwayCount" in (leg.details as any) &&
+                              typeof (leg.details as any).subwayCount ===
+                                "number" && (
                                 <span className="whitespace-nowrap">
-                                  지하철 {leg.details.subwayCount}회
+                                  지하철 {(leg.details as any).subwayCount}회
                                 </span>
                               )}
                           </div>
 
                           <div className="space-y-2 mt-3">
-                            {leg.details.steps
-                              .filter((s) => !isMeaninglessWalkStep(s))
-                              .map((step, stepIdx) => {
+                            {(leg.details as any).steps
+                              .filter((s: any) => !isMeaninglessWalkStep(s))
+                              .map((step: any, stepIdx: number) => {
                                 const durMin = Math.max(
                                   1,
                                   Math.ceil((step.duration ?? 0) / 60)
@@ -462,9 +509,10 @@ export default function RouteResults({ response }: Props) {
   if (!routes || routes.length === 0) return null;
 
   const taxiOnly =
-    (response as any).taxiOnly ?? routes.find((r) => r.type === "taxi-only");
+    (response as any).taxiOnly ??
+    routes.find((r: any) => r.type === "taxi-only");
   const mixedRoutes = routes.filter(
-    (r) => r.type === "taxi-transit" || r.type === "transit-taxi"
+    (r: any) => r.type === "taxi-transit" || r.type === "transit-taxi"
   );
 
   const bestMixed = mixedRoutes[0] ?? null;
@@ -514,7 +562,7 @@ export default function RouteResults({ response }: Props) {
                   )}
                   {minPossibleWalkMin !== null && minPossibleWalkMin > 0 && (
                     <div className="flex items-center text-amber-800">
-                      <Activity className="w-5 h-5 mr-2" />
+                      <Footprints className="w-5 h-5 mr-2" />
                       <span className="text-[16px] sm:text-lg font-semibold">
                         {minPossibleWalkMin}분
                       </span>
@@ -534,17 +582,22 @@ export default function RouteResults({ response }: Props) {
             <h3 className="text-[15px] sm:text-lg font-semibold text-gray-700">
               택시만 탔을 때
             </h3>
-            <RouteCard route={taxiOnly} title="택시만" />
+            <RouteCard route={taxiOnly} title="" variant="compact" />
           </div>
         )}
 
         {mixedRoutes.length > 0 && (
           <div className="space-y-3 sm:space-y-4">
             <h3 className="text-[15px] sm:text-lg font-semibold text-gray-700">
-              참고(믹스)
+              참고
             </h3>
-            {mixedRoutes.map((r, idx) => (
-              <RouteCard key={r.id ?? idx} route={r} title="참고" />
+            {mixedRoutes.map((r: any, idx: number) => (
+              <RouteCard
+                key={r.id ?? idx}
+                route={r}
+                title=""
+                variant="compact"
+              />
             ))}
           </div>
         )}
@@ -559,7 +612,7 @@ export default function RouteResults({ response }: Props) {
           추천 택시 절약 루트
         </h2>
         <span className="text-[12px] sm:text-sm text-gray-500">
-          믹스 {mixedRoutes.length}개
+          조합 {mixedRoutes.length}개
         </span>
       </div>
 
@@ -596,11 +649,12 @@ export default function RouteResults({ response }: Props) {
           title="추천"
           isBest={true}
           defaultExpanded
+          variant="featured"
         />
       ) : (
         <div className="rounded-2xl border border-gray-200 bg-white p-5 sm:p-6">
           <p className="text-gray-700 text-[14px] sm:text-base">
-            현재 조건에서 추천할 믹스 경로를 찾지 못했습니다.
+            현재 조건에서 추천할 조합 경로를 찾지 못했습니다.
           </p>
         </div>
       )}
@@ -610,17 +664,17 @@ export default function RouteResults({ response }: Props) {
           <h3 className="text-[16px] sm:text-xl font-bold text-gray-900">
             택시만 탔을 때
           </h3>
-          <RouteCard route={taxiOnly} title="택시만" />
+          <RouteCard route={taxiOnly} title="" variant="compact" />
         </div>
       )}
 
       {mixedRoutes.length > 1 && (
         <div className="space-y-3 sm:space-y-4">
           <h3 className="text-[16px] sm:text-xl font-bold text-gray-900">
-            대안(믹스)
+            대안
           </h3>
-          {mixedRoutes.slice(1).map((r, idx) => (
-            <RouteCard key={r.id ?? idx} route={r} title="대안" />
+          {mixedRoutes.slice(1).map((r: any, idx: number) => (
+            <RouteCard key={r.id ?? idx} route={r} title="" variant="compact" />
           ))}
         </div>
       )}
