@@ -19,6 +19,7 @@ interface Props {
 }
 
 const ROUTE_TYPE_LABELS: Record<string, string> = {
+  "transit-only": "대중교통",
   "taxi-only": "택시",
   "taxi-transit": "택시+대중교통",
   "transit-taxi": "대중교통+택시",
@@ -360,8 +361,8 @@ function RouteCard({
                                 <span className="mr-3 whitespace-nowrap">
                                   도보{" "}
                                   {Math.ceil(
-                                    (((leg.details as any).totalWalkM ??
-                                      0) as number) / 70
+                                    (((leg.details as any).totalWalkM ?? 0) as
+                                      number) / 70
                                   )}
                                   분
                                 </span>
@@ -509,25 +510,35 @@ export default function RouteResults({ response }: Props) {
   if (!routes || routes.length === 0) return null;
 
   const taxiOnly =
-    (response as any).taxiOnly ??
-    routes.find((r: any) => r.type === "taxi-only");
+    (response as any).taxiOnly ?? routes.find((r: any) => r.type === "taxi-only");
+
+  const transitOnlyRoutes = routes.filter((r: any) => r.type === "transit-only");
   const mixedRoutes = routes.filter(
     (r: any) => r.type === "taxi-transit" || r.type === "transit-taxi"
   );
 
+  const best = routes[0] as any;
   const bestMixed = mixedRoutes[0] ?? null;
+  const taxiSuppressed = (response as any).taxiSuppressed ?? null;
 
   const savingsKrw =
-    taxiOnly && bestMixed
-      ? Math.max(0, taxiOnly.totalCostKrw - bestMixed.totalCostKrw)
+    taxiOnly && best
+      ? Math.max(0, taxiOnly.totalCostKrw - best.totalCostKrw)
       : null;
 
   const savingsTimeMin =
-    taxiOnly && bestMixed
-      ? taxiOnly.totalTimeMin - bestMixed.totalTimeMin
-      : null;
+    taxiOnly && best ? taxiOnly.totalTimeMin - best.totalTimeMin : null;
+
+  const showSavingsBox =
+    taxiOnly &&
+    best &&
+    best.type !== "taxi-only" &&
+    savingsKrw !== null &&
+    savingsKrw > 0;
 
   if (noFeasibleRoute) {
+    const referenceRoutes = routes.filter((r: any) => r.type !== "taxi-only");
+
     return (
       <div className="space-y-4 sm:space-y-6">
         <div className="bg-amber-50 border border-amber-200 rounded-2xl p-5 sm:p-6">
@@ -573,6 +584,20 @@ export default function RouteResults({ response }: Props) {
                   )}
                 </div>
               </div>
+
+              {taxiSuppressed &&
+                typeof taxiSuppressed.totalSuppressed === "number" &&
+                taxiSuppressed.totalSuppressed > 0 && (
+                  <div className="mt-4 bg-white rounded-xl p-4 border border-amber-200">
+                    <p className="text-[13px] sm:text-sm text-amber-800 font-medium">
+                      택시 혼합 추천이 제외되었어요
+                    </p>
+                    <p className="mt-1 text-[12px] sm:text-sm text-amber-700">
+                      무의미한 짧은 택시 또는 절약 효과가 미미한 조합은 자동으로
+                      제외됩니다.
+                    </p>
+                  </div>
+                )}
             </div>
           </div>
         </div>
@@ -586,12 +611,12 @@ export default function RouteResults({ response }: Props) {
           </div>
         )}
 
-        {mixedRoutes.length > 0 && (
+        {referenceRoutes.length > 0 && (
           <div className="space-y-3 sm:space-y-4">
             <h3 className="text-[15px] sm:text-lg font-semibold text-gray-700">
               참고
             </h3>
-            {mixedRoutes.map((r: any, idx: number) => (
+            {referenceRoutes.map((r: any, idx: number) => (
               <RouteCard
                 key={r.id ?? idx}
                 route={r}
@@ -609,14 +634,29 @@ export default function RouteResults({ response }: Props) {
     <div className="space-y-4 sm:space-y-6">
       <div className="flex items-center justify-between">
         <h2 className="text-[18px] sm:text-2xl font-bold text-gray-900">
-          추천 택시 절약 루트
+          추천 경로
         </h2>
         <span className="text-[12px] sm:text-sm text-gray-500">
-          조합 {mixedRoutes.length}개
+          {mixedRoutes.length > 0 ? `조합 ${mixedRoutes.length}개` : "조합 0개"}
         </span>
       </div>
 
-      {taxiOnly && bestMixed && savingsKrw !== null && (
+      {taxiSuppressed &&
+        mixedRoutes.length === 0 &&
+        typeof taxiSuppressed.totalSuppressed === "number" &&
+        taxiSuppressed.totalSuppressed > 0 && (
+          <div className="rounded-2xl border border-gray-200 bg-white p-5 sm:p-6">
+            <p className="text-gray-900 text-[14px] sm:text-base font-semibold">
+              택시 혼합 추천이 없어요
+            </p>
+            <p className="mt-1 text-gray-600 text-[12px] sm:text-sm">
+              무의미한 짧은 택시(기본요금 수준) 또는 절약 효과가 미미한 조합은
+              자동으로 제외됩니다.
+            </p>
+          </div>
+        )}
+
+      {showSavingsBox && (
         <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-5 sm:p-6">
           <div className="flex items-start gap-3">
             <div className="shrink-0 mt-0.5">
@@ -624,11 +664,11 @@ export default function RouteResults({ response }: Props) {
             </div>
             <div className="min-w-0">
               <p className="text-[14px] sm:text-base font-semibold text-emerald-900">
-                {savingsKrw.toLocaleString()}원을 아꼈어요!
+                {savingsKrw!.toLocaleString()}원을 아꼈어요!
               </p>
               <p className="mt-1 text-[12px] sm:text-sm text-emerald-800">
                 택시만 탔을 때({taxiOnly.totalCostKrw.toLocaleString()}원) 대비{" "}
-                추천 루트({bestMixed.totalCostKrw.toLocaleString()}원)
+                추천 경로({best.totalCostKrw.toLocaleString()}원)
               </p>
               {typeof savingsTimeMin === "number" && savingsTimeMin !== 0 && (
                 <p className="mt-1 text-[12px] sm:text-sm text-emerald-800">
@@ -643,9 +683,9 @@ export default function RouteResults({ response }: Props) {
         </div>
       )}
 
-      {bestMixed ? (
+      {best ? (
         <RouteCard
-          route={bestMixed}
+          route={best}
           title="추천"
           isBest={true}
           defaultExpanded
@@ -654,7 +694,7 @@ export default function RouteResults({ response }: Props) {
       ) : (
         <div className="rounded-2xl border border-gray-200 bg-white p-5 sm:p-6">
           <p className="text-gray-700 text-[14px] sm:text-base">
-            현재 조건에서 추천할 조합 경로를 찾지 못했습니다.
+            현재 조건에서 추천 경로를 찾지 못했습니다.
           </p>
         </div>
       )}
@@ -668,14 +708,32 @@ export default function RouteResults({ response }: Props) {
         </div>
       )}
 
-      {mixedRoutes.length > 1 && (
+      {transitOnlyRoutes.length > 0 && best?.type !== "transit-only" && (
+        <div className="space-y-3 sm:space-y-4">
+          <h3 className="text-[16px] sm:text-xl font-bold text-gray-900">
+            대중교통
+          </h3>
+          {transitOnlyRoutes.map((r: any, idx: number) => (
+            <RouteCard key={r.id ?? idx} route={r} title="" variant="compact" />
+          ))}
+        </div>
+      )}
+
+      {mixedRoutes.length > 0 && (
         <div className="space-y-3 sm:space-y-4">
           <h3 className="text-[16px] sm:text-xl font-bold text-gray-900">
             대안
           </h3>
-          {mixedRoutes.slice(1).map((r: any, idx: number) => (
-            <RouteCard key={r.id ?? idx} route={r} title="" variant="compact" />
-          ))}
+          {mixedRoutes
+            .filter((r: any) => r.id !== best?.id)
+            .map((r: any, idx: number) => (
+              <RouteCard
+                key={r.id ?? idx}
+                route={r}
+                title=""
+                variant="compact"
+              />
+            ))}
         </div>
       )}
     </div>
