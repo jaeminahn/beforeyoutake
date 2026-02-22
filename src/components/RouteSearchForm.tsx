@@ -238,10 +238,11 @@ export default function RouteSearchForm({
         destination,
         maxTimeMin,
         maxWalkMin,
-        requireTaxi: true,
+        requireTaxi: false,
         taxiMaxSegments: 1,
         departureTime: departureISO,
-      };
+        debug: false,
+      } as any;
 
       const apiUrl = `${
         import.meta.env.VITE_SUPABASE_URL
@@ -254,6 +255,15 @@ export default function RouteSearchForm({
       });
 
       const data = await response.json();
+
+      if (!response.ok) {
+        if (data?.error === "IN_FLIGHT") {
+          onError("요청이 많습니다. 잠시 후 다시 시도해주세요.");
+        } else {
+          onError(data?.error || "경로를 찾을 수 없습니다.");
+        }
+        return;
+      }
 
       if (data.success) onSearch(data as RouteResponse);
       else onError(data.error || "경로를 찾을 수 없습니다.");
